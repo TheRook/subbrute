@@ -8,7 +8,7 @@ A notable improvement over every other subdomain bruteforcing tool out there is 
 Using some creative google hacks I put together a disorganized list of well over a million domain names,  I then used a regex to rip out the subdomains and then sorted them by frequency. You can also use this data-mangling feature by using using this simple command:
 python subroute.py -f full.html > my_subs.txt
 
-I used this feature to create subs.txt which contains 30040 subdomains.  subs_small.txt was stolen from fierce2 which contains 1896 subdomains. 
+I used this feature to create subs.txt which contains 31312 subdomains.  subs_small.txt was stolen from fierce2 which contains 1896 subdomains. 
 
 Having a list of resolvers (resolvers.txt)  is best for a multi-threaded application because most dns resolvers have rate-limiting by default.  This feature is for speed.
 
