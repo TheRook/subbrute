@@ -23,6 +23,7 @@ class lookup(Thread):
             self.resolver.nameservers=resolver_list
 
     def check(self, host):
+	slept=0
         while True:
             try:
                 answer = self.resolver.query(host)
@@ -37,8 +38,11 @@ class lookup(Thread):
                     #not found
                     return False
                 elif type(e) == dns.resolver.NoAnswer:
+		    if slept>5:
+		        return False
                     #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)
+		    slept+=1
                     #retry...
                 else:
                     #I have no idea what just happened...
@@ -107,8 +111,8 @@ def exit(signum=0, frame=0):
 if __name__ == "__main__":
     parser = optparse.OptionParser("usage: %prog [options] targetx`")
     parser.add_option("-c", "--thread_count", dest="thread_count",
-              default=5, type="int",
-              help="(optional) Number of lookup theads to run,  more isn't always better. default=5")
+              default=10, type="int",
+              help="(optional) Number of lookup theads to run,  more isn't always better. default=10")
     parser.add_option("-s", "--subs", dest="subs", default="subs.txt",
               type="string", help="(optional) list of subdomains,  default='subs.txt'")
     parser.add_option("-r", "--resolvers", dest="resolvers", default="resolvers.txt",
@@ -147,9 +151,17 @@ if __name__ == "__main__":
     threads=[]
 
     signal.signal(signal.SIGINT, exit)
+    step_size=int(len(resolve_list)/options.thread_count)
+    #Split up the resolver list between the threads. 
+    if step_size <=0:
+	step_size=1
+    step=0
     for i in range(options.thread_count):
-        threads.append(lookup(input,output,target,resolve_list))
+        threads.append(lookup(input,output,target,resolve_list[step:step+step_size]))
         threads[-1].start()
+	step+=step_size
+	if step >= len(resolve_list):
+	    step=0
 
     threads_remaining=options.thread_count    
     while True:
@@ -162,5 +174,3 @@ if __name__ == "__main__":
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
-
-        

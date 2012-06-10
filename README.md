@@ -1,7 +1,7 @@
 subdomain-bruteforcer
 =====================
 
-This is a (fast) multi-threaded python tool for enumerating subdomains.  This tool also contains a large  list of real subdomains that you will find in the wild.  Basically I was fed up with fierce / fierce2, and every other tool I used so I wrote something way better in python.   This tool will "just work",  and work well. 
+This is a (fast) multi-threaded python tool for enumerating subdomains.  This tool also contains a large  list of real subdomains that you will find in the wild.  Basically I was fed up with fierce / fierce2, and every other tool I used so I wrote something way faster in python.   This tool will "just work",  and work well.   By default this tool does subdomain enumeration about 4 times faster than Fierce, and can chew through 1k lookups in under a minute.
 
 A notable improvement over every other subdomain bruteforcing tool out there is that this tool has an awesome subdomain list and I included an awesome and flexible mangling feature to build your own subdomain list.   
 
@@ -25,5 +25,3 @@ Easy to use:
 ./subbrute.py target.com
 
 Cheers!
-
-(P.S. If you are looking for any other fierce features just use dig or nmap)
