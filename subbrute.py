@@ -18,7 +18,6 @@ class lookup(Thread):
         self.output=output
         self.domain=domain
         self.resolver=dns.resolver.Resolver()
-        self.answer=False
         if len(resolver_list):
             self.resolver.nameservers=resolver_list
 
@@ -28,9 +27,8 @@ class lookup(Thread):
             try:
                 answer = self.resolver.query(host)
                 #i don't care about the damn  period at the end!
-                self.answer=answer
                 if answer:
-                    return True
+                    return str(answer[0])
                 else:
                     return False
             except Exception as e:
@@ -57,8 +55,9 @@ class lookup(Thread):
                 self.output.put(False)
                 break
             test=sub+"."+self.domain        
-            if self.check(test):
-                self.output.put((test,str(self.answer[0])))
+            addr=self.check(test)
+	    if addr:
+                self.output.put((test,addr))
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
