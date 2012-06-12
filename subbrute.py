@@ -42,8 +42,12 @@ class lookup(Thread):
                     time.sleep(1)
 		    slept+=1
                     #retry...
+		elif type(e) == IndexError:
+			#Some old versions of dnspyton throw this error,
+			#doesn't seem to affect the results...
+			pass
                 else:
-                    #I have no idea what just happened...
+                    #dnspython threw some strange exception...
                     raise e
 
     def run(self):
