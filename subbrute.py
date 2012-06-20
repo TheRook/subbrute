@@ -1,5 +1,8 @@
 #!/usr/bin/python
-import Queue
+try:
+    import Queue
+except:
+    import queue as Queue
 import re
 import time
 import optparse
@@ -17,16 +20,16 @@ class lookup(Thread):
     
     def __init__(self,input, output, domain, resolver_list=[]):
         Thread.__init__(self)
-	self.q=input
+        self.q=input
         self.output=output
         self.domain=domain
-	self.resolver_list=resolver_list
+        self.resolver_list=resolver_list
         self.resolver=dns.resolver.Resolver()
         if len(resolver_list):
             self.resolver.nameservers=self.resolver_list
 
     def check(self, host):
-	slept=0
+        slept=0
         while True:
             try:
                 answer = self.resolver.query(host)
@@ -39,43 +42,44 @@ class lookup(Thread):
                     #not found
                     return False
                 elif type(e) == dns.resolver.NoAnswer  or type(e) == dns.resolver.Timeout:
-		    if slept == 4:
-			#maybe this dns server stopped responding.
-			#fall back on the system's dns name server
-			self.resolver.nameservers=[]
-		    elif slept>5:
-		        return False
-                    #Hmm,  we might have hit a rate limit on a resolver.
+                    if slept == 4:
+                        #maybe this dns server stopped responding.
+                        #fall back on the system's dns name server
+                        self.resolver.nameservers=[]
+                    elif slept>5:
+                        return False
+                        #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)
-		    slept+=1
+                    slept+=1
                     #retry...
-		elif type(e) == dns.resolver.NoNameservers:
-		    #maybe the nameserver went down.
-		    #so lets fall back on the  system's name server
-		    #If we have already tried to fall back like this,  then except.
-		    if self.resolver.nameservers == []:
-			raise e
-		    self.resolver.nameservers=[]
-		elif type(e) == IndexError:
-			#Some old versions of dnspython throw this error,
-			#doesn't seem to affect the results,  and it was fixed in later versions.
-			pass
+                elif type(e) == dns.resolver.NoNameservers:
+                    #maybe the nameserver went down.
+                    #so lets fall back on the  system's name server
+                    #If we have already tried to fall back like this,  then except.
+                    if self.resolver.nameservers == []:
+                        raise e
+                    self.resolver.nameservers=[]
+                elif type(e) == IndexError:
+                    #Some old versions of dnspython throw this error,
+                    #doesn't seem to affect the results,  and it was fixed in later versions.
+                    pass
                 else:
                     #dnspython threw some strange exception...
                     raise e
 
     def run(self):
-	while True:
+        while True:
             sub=self.q.get()
             if not sub:
                 #perpetuate the terminator for all threads to see
                 self.q.put(False)
                 self.output.put(False)
                 break
-            test="%s.%s" % (sub, self.domain)     
-            addr=self.check(test)
-	    if addr:
-                self.output.put((test,addr))
+            else:
+                test="%s.%s" % (sub, self.domain)     
+                addr=self.check(test)
+                if addr:
+                    self.output.put((test,addr))
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
@@ -116,8 +120,8 @@ def check_resolvers(file_name):
         resolver.nameservers=[server]
         try:
             resolver.query("www.google.com")
-            ret.append(server)
             #should throw an exception before this line.
+            ret.append(server)
         except:
             pass
     return ret
@@ -129,24 +133,24 @@ def run_target(target,hosts,resolve_list,thread_count):
         resp=dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-ever-fuck."+target)
         star_record=str(resp[0])
     except:
-        pass	
+        pass    
     input=Queue.Queue()
     output=Queue.Queue()
     for h in hosts:
         input.put(h)    
     #Terminate the queue
-    input.put(False)	
+    input.put(False)    
     step_size=int(len(resolve_list)/thread_count)
     #Split up the resolver list between the threads. 
     if step_size <=0:
-	step_size=1
+        step_size=1
     step=0
     for i in range(thread_count):
         threads.append(lookup(input,output,target,resolve_list[step:step+step_size]))
         threads[-1].start()
-	step+=step_size
-	if step >= len(resolve_list):
-	    step=0
+    step+=step_size
+    if step >= len(resolve_list):
+        step=0
 
     threads_remaining=options.thread_count    
     while True:
@@ -186,9 +190,9 @@ if __name__ == "__main__":
         sys.exit()
 
     if options.targets != "":
-	targets=open(options.targets).read().split("\n")
+        targets=open(options.targets).read().split("\n")
     else:
-	targets=args #multiple arguments on the cli:  ./subbrute.py google.com gmail.com yahoo.com
+        targets=args #multiple arguments on the cli:  ./subbrute.py google.com gmail.com yahoo.com
 
     hosts=open(options.subs).read().split("\n")
 
@@ -197,6 +201,6 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, exit)
     
     for target in targets:
-	target=target.strip()
-	if target:
-	    run_target(target,hosts,resolve_list,options.thread_count)
+        target=target.strip()
+        if target:
+            run_target(target,hosts,resolve_list,options.thread_count)
