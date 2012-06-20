@@ -123,7 +123,7 @@ def check_resolvers(file_name):
     return ret
 
 def run_target(target,hosts,resolve_list,thread_count):
-    #Hmm they might have a *.target dns record
+    #The target might have a wildcard dns record...
     star_record=False
     try:
         resp=dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-ever-fuck."+target)
@@ -155,13 +155,13 @@ def run_target(target,hosts,resolve_list,thread_count):
             threads_remaining-=1
         else:
             if not star_record or (star_record and d[1] != star_record):
-                print d[0]
+                print(d[0])
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser("usage: %prog [options] targetx`")
+    parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--thread_count", dest="thread_count",
               default=10, type="int",
               help="(optional) Number of lookup theads to run,  more isn't always better. default=10")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     if options.filter != "":
         #cleanup this file and print it out
         for d in extract_subdomains(options.filter):
-            print d
+            print(d)
         sys.exit()
 
     if options.targets != "":
