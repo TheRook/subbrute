@@ -9,24 +9,27 @@ import sys
 import dns.resolver
 from threading import Thread
 
+#exit handler for signals.  So ctrl+c will work,  even with py threads. 
+def exit(signum=0, frame=0):
+    os.kill(os.getpid(),9)
 
 class lookup(Thread):
     
     def __init__(self,input, output, domain, resolver_list=[]):
         Thread.__init__(self)
-        self.q=input
+	self.q=input
         self.output=output
         self.domain=domain
+	self.resolver_list=resolver_list
         self.resolver=dns.resolver.Resolver()
         if len(resolver_list):
-            self.resolver.nameservers=resolver_list
+            self.resolver.nameservers=self.resolver_list
 
     def check(self, host):
 	slept=0
         while True:
             try:
                 answer = self.resolver.query(host)
-                #i don't care about the damn  period at the end!
                 if answer:
                     return str(answer[0])
                 else:
@@ -35,30 +38,41 @@ class lookup(Thread):
                 if type(e) == dns.resolver.NXDOMAIN:
                     #not found
                     return False
-                elif type(e) == dns.resolver.NoAnswer:
-		    if slept>5:
+                elif type(e) == dns.resolver.NoAnswer  or type(e) == dns.resolver.Timeout:
+		    if slept == 4:
+			#maybe this dns server stopped responding.
+			#fall back on the system's dns name server
+			self.resolver.nameservers=[]
+		    elif slept>5:
 		        return False
                     #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)
 		    slept+=1
                     #retry...
+		elif type(e) == dns.resolver.NoNameservers:
+		    #maybe the nameserver went down.
+		    #so lets fall back on the  system's name server
+		    #If we have already tried to fall back like this,  then except.
+		    if self.resolver.nameservers == []:
+			raise e
+		    self.resolver.nameservers=[]
 		elif type(e) == IndexError:
-			#Some old versions of dnspyton throw this error,
-			#doesn't seem to affect the results...
+			#Some old versions of dnspython throw this error,
+			#doesn't seem to affect the results,  and it was fixed in later versions.
 			pass
                 else:
                     #dnspython threw some strange exception...
                     raise e
 
     def run(self):
-        while True:
+	while True:
             sub=self.q.get()
             if not sub:
                 #perpetuate the terminator for all threads to see
                 self.q.put(False)
                 self.output.put(False)
                 break
-            test=sub+"."+self.domain        
+            test="%s.%s" % (sub, self.domain)     
             addr=self.check(test)
 	    if addr:
                 self.output.put((test,addr))
@@ -108,58 +122,26 @@ def check_resolvers(file_name):
             pass
     return ret
 
-def exit(signum=0, frame=0):
-    os.kill(os.getpid(),9)
-
-if __name__ == "__main__":
-    parser = optparse.OptionParser("usage: %prog [options] targetx`")
-    parser.add_option("-c", "--thread_count", dest="thread_count",
-              default=10, type="int",
-              help="(optional) Number of lookup theads to run,  more isn't always better. default=10")
-    parser.add_option("-s", "--subs", dest="subs", default="subs.txt",
-              type="string", help="(optional) list of subdomains,  default='subs.txt'")
-    parser.add_option("-r", "--resolvers", dest="resolvers", default="resolvers.txt",
-              type="string", help="(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default='resolvers.txt'")              
-    parser.add_option("-f", "--filter_subs", dest="filter", default="",
-              type="string", help="(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
-    (options, args) = parser.parse_args()
-
-    if len(args) < 1 and options.filter=="":
-        parser.error("You must provie a target! Use -h for help.")
-
-    if options.filter != "":
-        #cleanup this file and print it out
-        for d in extract_subdomains(options.filter):
-            print d
-        sys.exit()
-    
-    target=args[0]
-    
+def run_target(target,hosts,resolve_list,thread_count):
     #Hmm they might have a *.target dns record
     star_record=False
     try:
         resp=dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-ever-fuck."+target)
         star_record=str(resp[0])
     except:
-        pass
+        pass	
     input=Queue.Queue()
     output=Queue.Queue()
-    hosts=open(options.subs).read()
-    for h in hosts.split("\n"):
-        input.put(h)
+    for h in hosts:
+        input.put(h)    
     #Terminate the queue
-    input.put(False)
-
-    resolve_list=check_resolvers(options.resolvers)
-    threads=[]
-
-    signal.signal(signal.SIGINT, exit)
-    step_size=int(len(resolve_list)/options.thread_count)
+    input.put(False)	
+    step_size=int(len(resolve_list)/thread_count)
     #Split up the resolver list between the threads. 
     if step_size <=0:
 	step_size=1
     step=0
-    for i in range(options.thread_count):
+    for i in range(thread_count):
         threads.append(lookup(input,output,target,resolve_list[step:step+step_size]))
         threads[-1].start()
 	step+=step_size
@@ -177,3 +159,44 @@ if __name__ == "__main__":
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser("usage: %prog [options] targetx`")
+    parser.add_option("-c", "--thread_count", dest="thread_count",
+              default=10, type="int",
+              help="(optional) Number of lookup theads to run,  more isn't always better. default=10")
+    parser.add_option("-s", "--subs", dest="subs", default="subs.txt",
+              type="string", help="(optional) list of subdomains,  default='subs.txt'")
+    parser.add_option("-r", "--resolvers", dest="resolvers", default="resolvers.txt",
+              type="string", help="(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default='resolvers.txt'")              
+    parser.add_option("-f", "--filter_subs", dest="filter", default="",
+              type="string", help="(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
+    parser.add_option("-t", "--target_file", dest="targets", default="",
+              type="string", help="(optional) A file containing a newline delimited list of domains to brute force.")
+  
+    (options, args) = parser.parse_args()
+
+    if len(args) < 1 and options.filter=="" and options.targets=="":
+        parser.error("You must provie a target! Use -h for help.")
+
+    if options.filter != "":
+        #cleanup this file and print it out
+        for d in extract_subdomains(options.filter):
+            print d
+        sys.exit()
+
+    if options.targets != "":
+	targets=open(options.targets).read().split("\n")
+    else:
+	targets=args #multiple arguments on the cli:  ./subbrute.py google.com gmail.com yahoo.com
+
+    hosts=open(options.subs).read().split("\n")
+
+    resolve_list=check_resolvers(options.resolvers)
+    threads=[]
+    signal.signal(signal.SIGINT, exit)
+    
+    for target in targets:
+	target=target.strip()
+	if target:
+	    run_target(target,hosts,resolve_list,options.thread_count)
