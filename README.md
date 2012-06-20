@@ -13,7 +13,7 @@ I used this feature to create subs.txt which contains 31280 subdomains.  subs_sm
 Having a list of resolvers (resolvers.txt)  is best for a multi-threaded application because most dns resolvers have rate-limiting by default.  This feature is one reason why this tool is faster than anything else I have seen.
 
 Easy to install:
-You just need http://www.dnspython.org/ and python2.7,  should work under any operating system:  bsd, osx, windows, linux...
+You just need http://www.dnspython.org/ and python2.7 or python3.  This tool should work under any operating system:  bsd, osx, windows, linux...
 
 (On a side note giving a makefile root always bothers me,  it would be a great place for a backdoor...)
 
