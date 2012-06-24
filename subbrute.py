@@ -47,14 +47,20 @@ class lookup(Thread):
                     return False
                 elif type(e) == dns.resolver.NoAnswer  or type(e) == dns.resolver.Timeout:
                     if slept == 4:
-                        #maybe this dns server stopped responding.
-                        #fall back on the system's dns name server
-                        self.resolver.nameservers = self.backup_resolver
+                        #This dns server stopped responding.
+                        #We could be hitting a rate limit.
+                        if self.resolver.nameservers == self.backup_resolver:
+                            #if we are already using the backup_resolver use the resolver_list
+                            self.resolver.nameservers = self.resolver_list
+                        else:
+                            #fall back on the system's dns name server
+                            self.resolver.nameservers = self.backup_resolver
                     elif slept > 5:
                         #hmm the backup resolver didn't work, 
                         #so lets go back to the resolver_list provided.
-                        #If the self.backup_resolver lsit did work, lets stick with it.
+                        #If the self.backup_resolver list did work, lets stick with it.
                         self.resolver.nameservers = self.resolver_list
+                        #I don't think we are ever guaranteed a response for a given name.
                         return False
                         #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)

@@ -32,4 +32,10 @@ Also tests multiple domains:
 or a newline delimited list of domains:
 ./subbrute.py -t list.txt
 
+Also keep in mind that subdomains can have subdomains:
+
+./subbrute.py google.com > out
+
+./subbrute.py -t out
+
 Cheers!
