@@ -161,7 +161,7 @@ def run_target(target, hosts, resolve_list, thread_count):
     if step >= len(resolve_list):
         step = 0
 
-    threads_remaining = options.thread_count
+    threads_remaining = thread_count
     while True:
         d = output.get()
         if not d:
