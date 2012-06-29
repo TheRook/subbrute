@@ -17,11 +17,12 @@ def exit(signum = 0, frame = 0):
 
 class lookup(Thread):
 
-    def __init__(self, input, output, domain, resolver_list = []):
+    def __init__(self, input, output, domain, wildcard = False, resolver_list = []):
         Thread.__init__(self)
-        self.q = input
+        self.input = input
         self.output = output
         self.domain = domain
+        self.wildcard = wildcard
         self.resolver_list = resolver_list
         self.resolver = dns.resolver.Resolver()
         if len(self.resolver.nameservers):
@@ -76,17 +77,17 @@ class lookup(Thread):
 
     def run(self):
         while True:
-            sub = self.q.get()
+            sub = self.input.get()
             if not sub:
                 #perpetuate the terminator for all threads to see
-                self.q.put(False)
+                self.input.put(False)
                 self.output.put(False)
                 break
             else:
                 test = "%s.%s" % (sub, self.domain)
                 addr = self.check(test)
-                if addr:
-                    self.output.put((test, addr))
+                if addr and addr != self.wildcard:
+                    self.output.put(test)
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
@@ -109,6 +110,7 @@ def extract_subdomains(file_name):
                 #print(str(p) + " : " + i)
                 for q in p:
                     if q :
+                        q = q.lower() #domain names can only be lower case.
                         if q in subs:
                             subs[q] += 1
                         else:
@@ -137,10 +139,10 @@ def check_resolvers(file_name):
 
 def run_target(target, hosts, resolve_list, thread_count):
     #The target might have a wildcard dns record...
-    star_record = False
+    wildcard = False
     try:
         resp = dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-ever-fuck." + target)
-        star_record = str(resp[0])
+        wildcard = str(resp[0])
     except:
         pass
     input = queue.Queue()
@@ -155,7 +157,7 @@ def run_target(target, hosts, resolve_list, thread_count):
         step_size = 1
     step = 0
     for i in range(thread_count):
-        threads.append(lookup(input, output, target, resolve_list[step:step + step_size]))
+        threads.append(lookup(input, output, target, wildcard , resolve_list[step:step + step_size]))
         threads[-1].start()
     step += step_size
     if step >= len(resolve_list):
@@ -163,12 +165,15 @@ def run_target(target, hosts, resolve_list, thread_count):
 
     threads_remaining = thread_count
     while True:
-        d = output.get()
-        if not d:
-            threads_remaining -= 1
-        else:
-            if not star_record or (star_record and d[1] != star_record):
-                print(d[0])
+        try:
+            d = output.get(True, 10)
+            #we will get an empty exception before this runs. 
+            if not d:
+                threads_remaining -= 1
+            else:
+                print(d)
+        except queue.Empty:
+            pass
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
@@ -208,6 +213,7 @@ if __name__ == "__main__":
     resolve_list = check_resolvers(options.resolvers)
     threads = []
     signal.signal(signal.SIGINT, exit)
+
 
     for target in targets:
         target = target.strip()
