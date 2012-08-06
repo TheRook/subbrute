@@ -1,26 +1,34 @@
 #!/usr/bin/python
+#
+#SubBrute v1.0
+#A (very) fast subdomain enumeration tool.
+#Written by Rook
+#
 import re
 import time
 import optparse
 import os
 import signal
 import sys
+import random
 import dns.resolver
 from threading import Thread
+#support for python 2.7 and 3
 try:
     import queue
 except:
     import Queue as queue
+
 #exit handler for signals.  So ctrl+c will work,  even with py threads. 
-def exit(signum = 0, frame = 0):
+def killme(signum = 0, frame = 0):
     os.kill(os.getpid(), 9)
 
 class lookup(Thread):
 
-    def __init__(self, input, output, domain, wildcard = False, resolver_list = []):
+    def __init__(self, in_q, out_q, domain, wildcard = False, resolver_list = []):
         Thread.__init__(self)
-        self.input = input
-        self.output = output
+        self.in_q = in_q
+        self.out_q = out_q
         self.domain = domain
         self.wildcard = wildcard
         self.resolver_list = resolver_list
@@ -63,7 +71,7 @@ class lookup(Thread):
                         self.resolver.nameservers = self.resolver_list
                         #I don't think we are ever guaranteed a response for a given name.
                         return False
-                        #Hmm,  we might have hit a rate limit on a resolver.
+                    #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)
                     slept += 1
                     #retry...
@@ -77,26 +85,27 @@ class lookup(Thread):
 
     def run(self):
         while True:
-            sub = self.input.get()
+            sub = self.in_q.get()
             if not sub:
-                #perpetuate the terminator for all threads to see
-                self.input.put(False)
-                self.output.put(False)
+                #Perpetuate the terminator for all threads to see
+                self.in_q.put(False)
+                #Notify the parent of our death of natural causes.
+                self.out_q.put(False)
                 break
             else:
                 test = "%s.%s" % (sub, self.domain)
                 addr = self.check(test)
                 if addr and addr != self.wildcard:
-                    self.output.put(test)
+                    self.out_q.put(test)
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
     subs = {}
-    file = open(file_name).read()
+    sub_file = open(file_name).read()
     #Only match domains that have 3 or more sections subdomain.domain.tld
     domain_match = re.compile("([a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*)+")
-    f_all = re.findall(domain_match, file)
-    del file
+    f_all = re.findall(domain_match, sub_file)
+    del sub_file
     for i in f_all:
         if i.find(".") >= 0:
             p = i.split(".")[0:-1]
@@ -110,7 +119,8 @@ def extract_subdomains(file_name):
                 #print(str(p) + " : " + i)
                 for q in p:
                     if q :
-                        q = q.lower() #domain names can only be lower case.
+                        #domain names can only be lower case.
+                        q = q.lower()
                         if q in subs:
                             subs[q] += 1
                         else:
@@ -124,8 +134,8 @@ def extract_subdomains(file_name):
 def check_resolvers(file_name):
     ret = []
     resolver = dns.resolver.Resolver()
-    file = open(file_name).read()
-    for server in file.split("\n"):
+    res_file = open(file_name).read()
+    for server in res_file.split("\n"):
         server = server.strip()
         if server:
             resolver.nameservers = [server]
@@ -141,23 +151,24 @@ def run_target(target, hosts, resolve_list, thread_count):
     #The target might have a wildcard dns record...
     wildcard = False
     try:
-        resp = dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-ever-fuck." + target)
+
+        resp = dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-" + str(random.randint(1, 9999)) + "." + target)
         wildcard = str(resp[0])
     except:
         pass
-    input = queue.Queue()
-    output = queue.Queue()
+    in_q = queue.Queue()
+    out_q = queue.Queue()
     for h in hosts:
-        input.put(h)
+        in_q.put(h)
     #Terminate the queue
-    input.put(False)
+    in_q.put(False)
     step_size = int(len(resolve_list) / thread_count)
     #Split up the resolver list between the threads. 
     if step_size <= 0:
         step_size = 1
     step = 0
     for i in range(thread_count):
-        threads.append(lookup(input, output, target, wildcard , resolve_list[step:step + step_size]))
+        threads.append(lookup(in_q, out_q, target, wildcard , resolve_list[step:step + step_size]))
         threads[-1].start()
     step += step_size
     if step >= len(resolve_list):
@@ -166,7 +177,7 @@ def run_target(target, hosts, resolve_list, thread_count):
     threads_remaining = thread_count
     while True:
         try:
-            d = output.get(True, 10)
+            d = out_q.get(True, 10)
             #we will get an empty exception before this runs. 
             if not d:
                 threads_remaining -= 1
@@ -212,8 +223,7 @@ if __name__ == "__main__":
 
     resolve_list = check_resolvers(options.resolvers)
     threads = []
-    signal.signal(signal.SIGINT, exit)
-
+    signal.signal(signal.SIGINT, killme)
 
     for target in targets:
         target = target.strip()
