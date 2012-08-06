@@ -5,7 +5,7 @@ This is a (fast) multi-threaded python tool for enumerating subdomains.  This to
 
 Why is this tool so fast?
 
-Other multi-threaded subdomain enumeration tools that I have seen are bottlenecked by using a single resolver.   In SubBrute, each thread is given its own slice of the resolvers list (resolvers.txt) so they don't overwhelm a single resolver.  The subdomain list (subs.txt) is sorted by frequency, so this tool will return the most common domains quickly.  
+Other multi-threaded subdomain enumeration tools that I have seen are bottlenecked by using a single resolver.   In SubBrute, each thread is given its own slice of the resolvers list (resolvers.txt) so that a single resolver isn't overwhelmed.  The subdomain list (subs.txt) is sorted by frequency, so this tool will return the most common domains quickly.  
 
 Using some creative google hacks I put together a disorganized list of well over a million domain names,  I then used a regex to rip out the subdomains and then sorted them by frequency. You can also use this data-mangling feature by using using this simple command:
 python subroute.py -f full.html > my_subs.txt
