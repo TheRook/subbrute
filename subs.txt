@@ -31278,3 +31278,14 @@ webring
 vpn01
 vpn02
 m
+_tcp
+_udp
+_sip
+_ftp
+_nfs
+_pptp
+_ntp
+_snmp	
+_xmpp-server
+_jabber
+
