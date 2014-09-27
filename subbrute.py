@@ -10,6 +10,7 @@ import optparse
 import os
 import signal
 import sys
+import socket
 import random
 import dns.resolver
 from threading import Thread
@@ -96,6 +97,7 @@ class lookup(Thread):
                 test = "%s.%s" % (sub, self.domain)
                 addr = self.check(test)
                 if addr and addr != self.wildcard:
+                    test = (test, str(addr))
                     self.out_q.put(test)
 
 #Return a list of unique sub domains,  sorted by frequency.
@@ -147,7 +149,7 @@ def check_resolvers(file_name):
                 pass
     return ret
 
-def run_target(target, hosts, resolve_list, thread_count):
+def run_target(target, hosts, resolve_list, thread_count, print_numeric):
     #The target might have a wildcard dns record...
     wildcard = False
     try:
@@ -182,7 +184,10 @@ def run_target(target, hosts, resolve_list, thread_count):
             if not d:
                 threads_remaining -= 1
             else:
-                print(d)
+                if not print_numeric:
+                    print(d[0])
+                else:
+                    print("%s,%s" % (d[0], d[1]))
         except queue.Empty:
             pass
         #make sure everyone is complete
@@ -202,6 +207,8 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
     parser.add_option("-t", "--target_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
+    parser.add_option("-n", "--numeric", dest = "numeric", action = "store_true", default = False,
+              help = "(optional) Additionally prints numeric IP addresses for sub domains (default=off).")
 
     (options, args) = parser.parse_args()
 
@@ -228,4 +235,4 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
-            run_target(target, hosts, resolve_list, options.thread_count)
+            run_target(target, hosts, resolve_list, options.thread_count, options.numeric)
