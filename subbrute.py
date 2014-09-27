@@ -10,7 +10,6 @@ import optparse
 import os
 import signal
 import sys
-import socket
 import random
 import dns.resolver
 from threading import Thread
