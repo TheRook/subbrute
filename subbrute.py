@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 #SubBrute v1.0
 #A (very) fast subdomain enumeration tool.
