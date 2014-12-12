@@ -26,12 +26,12 @@ def killme(signum = 0, frame = 0):
 
 class lookup(Thread):
 
-    def __init__(self, in_q, out_q, domain, wildcard = False, resolver_list = []):
+    def __init__(self, in_q, out_q, domain, wildcards = False, resolver_list = []):
         Thread.__init__(self)
         self.in_q = in_q
         self.out_q = out_q
         self.domain = domain
-        self.wildcard = wildcard
+        self.wildcards = wildcards
         self.resolver_list = resolver_list
         self.resolver = dns.resolver.Resolver()
         if len(self.resolver.nameservers):
@@ -96,7 +96,7 @@ class lookup(Thread):
             else:
                 test = "%s.%s" % (sub, self.domain)
                 addr = self.check(test)
-                if addr and addr != self.wildcard:
+                if addr and (not self.wildcards or addr not in self.wildcards):
                     test = (test, str(addr))
                     self.out_q.put(test)
 
@@ -149,13 +149,23 @@ def check_resolvers(file_name):
                 pass
     return ret
 
-def run_target(target, hosts, resolve_list, thread_count, print_numeric):
-    #The target might have a wildcard dns record...
-    wildcard = False
-    try:
+def request_random_wildcard(base):
+    return dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-" + str(random.randint(1, 99999)) + "." + base)
 
-        resp = dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-" + str(random.randint(1, 9999)) + "." + target)
-        wildcard = str(resp[0])
+def run_target(target, hosts, resolve_list, thread_count, print_numeric, wildcard_sniff_limit):
+    #The target might have a wildcard dns record...
+    wildcards = False
+    try:
+        wildcards = bool(request_random_wildcard(target))
+        if wildcards:
+            wildcards = set()
+            sys.stderr.write("wildcard subdomains detected, sniffing for possible round robin IPs:\n")
+            for i in xrange(wildcard_sniff_limit):
+                sys.stderr.write(".")
+                sys.stderr.flush()
+                time.sleep(0.1)
+                wildcards.add(str(request_random_wildcard(target)[0]))
+            sys.stderr.write("\n")
     except:
         pass
     in_q = queue.Queue()
@@ -170,7 +180,7 @@ def run_target(target, hosts, resolve_list, thread_count, print_numeric):
         step_size = 1
     step = 0
     for i in range(thread_count):
-        threads.append(lookup(in_q, out_q, target, wildcard , resolve_list[step:step + step_size]))
+        threads.append(lookup(in_q, out_q, target, wildcards , resolve_list[step:step + step_size]))
         threads[-1].start()
     step += step_size
     if step >= len(resolve_list):
@@ -210,6 +220,9 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
     parser.add_option("-n", "--numeric", dest = "numeric", action = "store_true", default = False,
               help = "(optional) Additionally prints numeric IP addresses for sub domains (default=off).")
+    parser.add_option("--wildcard_sniff_limit", dest = "wildcard_sniff_limit", type=int, default = 100,
+              help = "(optional) How many times to request wildcard domain IPs to add to the ignore list (default=100).")
+
 
     (options, args) = parser.parse_args()
 
@@ -232,8 +245,7 @@ if __name__ == "__main__":
     resolve_list = check_resolvers(options.resolvers)
     threads = []
     signal.signal(signal.SIGINT, killme)
-
     for target in targets:
         target = target.strip()
         if target:
-            run_target(target, hosts, resolve_list, options.thread_count, options.numeric)
+            run_target(target, hosts, resolve_list, options.thread_count, options.numeric, options.wildcard_sniff_limit)
