@@ -8,6 +8,7 @@ import re
 import time
 import optparse
 import os
+import os.path
 import signal
 import sys
 import random
@@ -194,13 +195,14 @@ def run_target(target, hosts, resolve_list, thread_count, print_numeric):
             break
 
 if __name__ == "__main__":
+    base_path = os.path.dirname(os.path.realpath(__file__))
     parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--thread_count", dest = "thread_count",
               default = 10, type = "int",
               help = "(optional) Number of lookup theads to run,  more isn't always better. default=10")
-    parser.add_option("-s", "--subs", dest = "subs", default = "subs.txt",
+    parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "subs.txt"),
               type = "string", help = "(optional) list of subdomains,  default='subs.txt'")
-    parser.add_option("-r", "--resolvers", dest = "resolvers", default = "resolvers.txt",
+    parser.add_option("-r", "--resolvers", dest = "resolvers", default = os.path.join(base_path, "resolvers.txt"),
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default='resolvers.txt'")
     parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
