@@ -15,6 +15,7 @@ my
 members
 blogs
 search
+staging
 www7a
 www7b
 regione
@@ -49,6 +50,10 @@ kk
 app
 admin
 server
+varnish
+artifactory
+mvn
+maven
 baidu
 www4b
 forums
