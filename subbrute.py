@@ -171,7 +171,7 @@ def run_target(target, hosts, resolve_list, thread_count, print_numeric):
     for i in range(thread_count):
         threads.append(lookup(in_q, out_q, target, wildcard , resolve_list[step:step + step_size]))
         threads[-1].start()
-    step += step_size
+        step = (step + step_size) % len(resolve_list)
     if step >= len(resolve_list):
         step = 0
 
