@@ -1,18 +1,18 @@
 Whats new in v1.1?
 =====================
-This version merges pull requests from the community; changes from JordanMilne, KxCode and rc0r is in this release.  From the community this project revived bug fixes, and improvements to accuracy.  As requsted, this project is now GPLv3.
+This version merges pull requests from the community; changes from JordanMilne, KxCode and rc0r is in this release.  In SubBrute 1.1 we fixed bugs, improved  accuracy, and efficiency.  As requested, this project is now GPLv3.
 
 Better wildcard detection:
- - Support for Geolocation aware DNS
- - Filter misbehaving nameservers
+ - Support for Geolocation aware DNS for wildcard filtering
+ - Filter misbehaving nameservers that introduce wildcards
 
 Faster:
- - More name servers, more than 2,000 high quality nameservers were added to resolvers.txt
- - Each lookup thread builds its own pool of resolver,  a separate thread is responsible for feeding these pools with high quality resolver.
+ - More than 2,000 high quality nameservers were added to resolvers.txt,  these servers will resolve multiple queries in under 1 sec.
+ - Nameservers are verified when they are needed.  A seperate thread is responsible creating a feed of nameservers, and corresponding wildcard blacklist set.
 
 New output:
--a will list all addresses associated with a subdomain
--v debug output,  to help developers/hackers track down bugs in subbrute.
+- -a will list all addresses associated with a subdomain
+- -v debug output,  to help developers/hackers debug subbrute.
 
 subdomain-bruteforcer v1.1
 =====================
