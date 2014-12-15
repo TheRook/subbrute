@@ -1,4 +1,20 @@
-subdomain-bruteforcer v1.0
+Whats new in v1.1?
+=====================
+This version merges pull requests from the community; changes from JordanMilne, KxCode and rc0r is in this release.  From the community this project revived bug fixes, and improvements to accuracy.  As requsted, this project is now GPLv3.
+
+Better wildcard detection:
+ - Support for Geolocation aware DNS
+ - Filter misbehaving nameservers
+
+Faster:
+ - More name servers, more than 2,000 high quality nameservers were added to resolvers.txt
+ - Each lookup thread builds its own pool of resolver,  a separate thread is responsible for feeding these pools with high quality resolver.
+
+New output:
+-a will list all addresses associated with a subdomain
+-v debug output,  to help developers/hackers track down bugs in subbrute.
+
+subdomain-bruteforcer v1.1
 =====================
 
 This is a (fast) multi-threaded python tool for enumerating subdomains.  This tool also contains a large list of real subdomains that you will find in the wild.  Basically I was fed up with fierce / fierce2, and every other tool I used so I wrote something way faster in python.   This tool will "just work",  and work well.   By default this tool performs subdomain enumeration about 8 times faster than Fierce, and can chew through 31k lookups in about 5 minutes on a home cable connection.

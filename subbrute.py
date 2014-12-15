@@ -1,8 +1,8 @@
 #!/usr/bin/python
 #
-#SubBrute v1.0
+#SubBrute v1.1
 #A (very) fast subdomain enumeration tool.
-#Written by Rook
+#Written by rook
 #
 import re
 import time
@@ -11,66 +11,210 @@ import os
 import os.path
 import signal
 import sys
+import uuid
 import random
 import dns.resolver
 from threading import Thread
-#support for python 2.7 and 3
+#Support for python 2.7.x and 3
 try:
     import queue
 except:
     import Queue as queue
 
-#exit handler for signals.  So ctrl+c will work,  even with py threads. 
-def killme(signum = 0, frame = 0):
-    os.kill(os.getpid(), 9)
+class nameserver_pool(Thread):
+
+    def __init__(self, resolver_q, resolver_list, target, wildcards):
+        Thread.__init__(self)
+        self.time_to_die = False
+        self.resolver_q = resolver_q
+        self.wildcards = wildcards
+        self.resolver_list = resolver_list
+        resolver = dns.resolver.Resolver()
+        #The domain provided by the user.
+        self.target = target
+        #1 website in the world,  modify the following line when this status changes.
+        #www.google.cn,  I'm looking at you ;)
+        self.most_popular_website = "www.google.com"
+        #We shouldn't need the backup_resolver, but we we can use them if need be.
+        #We must have a resolver,  and localhost can work in some environments.
+        self.backup_resolver = resolver.nameservers + ['127.0.0.1', '8.8.8.8', '8.8.4.4']
+        #Ideally a nameserver should respond in less than 1 sec.
+        resolver.timeout = 1
+        resolver.lifetime = 1
+        try:
+            #Lets test the letancy of our connection.
+            #Google's DNS server should be an ideal time test.
+            resolver.nameservers = ['8.8.8.8']
+            resolver.query(self.most_popular_website, "A")
+        except:
+            #Our connection is slower than a junebug in molasses
+            resolver = dns.resolver.Resolver()
+        self.resolver = resolver
+
+    def die(self):
+        self.time_to_die = True
+
+    #This thread cannot block forever,  it  needs to check if its time to die.
+    def add_nameserver(self, nameserver):
+        keep_trying = True
+        while not self.time_to_die and keep_trying:
+            try:
+                self.resolver_q.put(nameserver, timeout = 1)
+                trace("Added nameserver:", nameserver)
+                keep_trying = False
+            except Full:
+                print(e)
+                keep_trying = True
+
+    def verify_nameservers(self, nameserver_list):
+        added_resolver = False
+        for server in nameserver_list:
+            if self.time_to_die:
+                #We are done here.
+                return True
+            server = server.strip()
+            if server:
+                self.resolver.nameservers = [server]
+                try:
+                    test_result = self.resolver.query(self.most_popular_website, "A")
+                    #should throw an exception before this line.
+                    if test_result:
+                        #Only add the nameserver to the queue if we can detect wildcards. 
+                        if(self.find_wildcards(self.target)):# and self.find_wildcards(".com")
+                            #wildcards have been added to the set, it is now safe to be added to the queue.
+                            #blocking queue,  this thread will halt on put() when the queue is full:
+                            self.add_nameserver(server)
+                            added_resolver = True
+                        else:
+                            trace("Wildcard reject:", server)
+                except Exception as e:
+                    #Rejected server :(
+                    trace("Rejected nameserver:", server, type(e)) 
+        return added_resolver
+
+    def run(self):
+        #Every user will get a different set of resovlers, this helps redistribute traffic.
+        random.shuffle(self.resolver_list)
+        if not self.verify_nameservers(self.resolver_list):
+            #This should never happen,  inform the user.
+            sys.stderr.write('No nameservers found, trying fallback list.\n')
+            #Try and fix it for the user:
+            self.verify_nameservers(self.backup_resolver)
+        #We are out of nameservers, terminate the resolver queue
+        self.resolver_q.put(False)
+
+    #Only add the nameserver to the queue if we can detect wildcards. 
+    #Returns False on error.
+    def find_wildcards(self, host):
+        #We want sovle the following three problems:
+        #1)The target might have a wildcard DNS record.
+        #2)The target maybe using Geolocaiton-aware DNS.
+        #3)The DNS server we are testing may respond to non-exsistant 'A' records with advertizements.
+        #I have seen a CloudFlare Enterprise customer with the first two conditions.
+        try:
+            #This is case #3,  these spam nameservers seem to be more trouble then they are worth.
+             wildtest = self.resolver.query(uuid.uuid4().hex + ".com", "A")
+             if len(wildtest):
+                trace("Spam DNS detected:", host)
+                return False
+        except:
+            pass
+        test_counter = 8
+        looking_for_wildcards = True
+        while looking_for_wildcards and test_counter >= 0 :
+            looking_for_wildcards = False
+            #Don't get lost, this nameserver could be playing tricks.
+            test_counter -= 1            
+            try:
+                testdomain = "%s.%s" % (uuid.uuid4().hex, host)
+                wildtest = self.resolver.query(testdomain, "A")
+                #This 'A' record may contain a list of wildcards.
+                if wildtest:
+                    for w in wildtest:
+                        w = str(w)
+                        if w not in self.wildcards:
+                            #wildcards were detected.
+                            self.wildcards.add(w)
+                            #We found atleast one wildcard, look for more.
+                            looking_for_wildcards = True
+            except Exception as e:
+                if type(e) == dns.resolver.NXDOMAIN or type(e) == dns.name.EmptyLabel:
+                    #not found
+                    return True
+                else:
+                    #This resolver maybe flakey, we don't want it for our tests.
+                    trace("wildcard exception:", self.resolver.nameservers, type(e)) 
+                    return False 
+        #If we hit the end of our depth counter and,
+        #there are still wildcards, then reject this nameserver because it smells bad.
+        return (test_counter >= 0)
 
 class lookup(Thread):
 
-    def __init__(self, in_q, out_q, domain, wildcards = False, resolver_list = []):
+    def __init__(self, in_q, out_q, resolver_q, domain, wildcards):
         Thread.__init__(self)
+        self.minimum_nameservers = 8
         self.in_q = in_q
         self.out_q = out_q
+        self.resolver_q = resolver_q        
         self.domain = domain
         self.wildcards = wildcards
-        self.resolver_list = resolver_list
         self.resolver = dns.resolver.Resolver()
-        if len(self.resolver.nameservers):
-            self.backup_resolver = self.resolver.nameservers
-        else:
-            #we must have a resolver,  and this is the default resolver on my system...
-            self.backup_resolver = ['127.0.0.1']
-        if len(self.resolver_list):
-            self.resolver.nameservers = self.resolver_list
+        #Force pydns to use our nameservers
+        self.resolver.nameservers = []
+
+    def get_ns(self):
+        ret = []
+        try:
+            ret = [self.resolver_q.get_nowait()]
+            if ret == False:
+                #Queue is empty,  inform the rest.
+                self.resolver_q.put(False)
+                ret = []
+        except:
+            pass      
+        return ret  
+
+    def get_ns_blocking(self):
+        ret = []
+        ret = [self.resolver_q.get()]
+        if ret == False:
+            trace("get_ns_blocking - Resolver list is empty.")
+            #Queue is empty,  inform the rest.
+            self.resolver_q.put(False)
+            ret = []
+        return ret
 
     def check(self, host):
-        slept = 0
+        trace("Checking:", host)
+        slept = 0        
+        if len(self.resolver.nameservers) <= self.minimum_nameservers:
+            #This thread needs more nameservers,  lets see if we have one avaible in the pool.
+            self.resolver.nameservers += self.get_ns()
+        #Ok we should be good to go.
         while True:
             try:
-                answer = self.resolver.query(host)
-                if answer:
-                    return str(answer[0])
-                else:
-                    return False
+                #Query the nameserver, this is not simple...
+                return self.resolver.query(host)
             except Exception as e:
-                if type(e) == dns.resolver.NXDOMAIN:
-                    #not found
+                if type(e) == dns.resolver.NoNameservers:
+                    #We should never be here.
+                    #We must block,  another thread should try this host.
+                    self.in_q.put(host)
+                    self.resolver.nameservers += self.get_ns_blocking()
                     return False
-                elif type(e) == dns.resolver.NoAnswer  or type(e) == dns.resolver.Timeout:
-                    if slept == 4:
-                        #This dns server stopped responding.
-                        #We could be hitting a rate limit.
-                        if self.resolver.nameservers == self.backup_resolver:
-                            #if we are already using the backup_resolver use the resolver_list
-                            self.resolver.nameservers = self.resolver_list
-                        else:
-                            #fall back on the system's dns name server
-                            self.resolver.nameservers = self.backup_resolver
-                    elif slept > 5:
-                        #hmm the backup resolver didn't work, 
-                        #so lets go back to the resolver_list provided.
-                        #If the self.backup_resolver list did work, lets stick with it.
-                        self.resolver.nameservers = self.resolver_list
-                        #I don't think we are ever guaranteed a response for a given name.
+                elif type(e) == dns.resolver.NXDOMAIN:
+                    #"Non-existent domain name."
+                    return False
+                elif type(e) == dns.resolver.NoAnswer:
+                    #"The response did not contain an answer."
+                    return False
+                elif type(e) == dns.resolver.Timeout:
+                    trace("lookup failure:", host, slept)
+                    #Try a backup list twice,  give our main list a chance to cool.
+                    if slept >= 3:
+                        #Maybe another thread can take a crack at it.
+                        self.in_q.put(host)
                         return False
                     #Hmm,  we might have hit a rate limit on a resolver.
                     time.sleep(1)
@@ -81,11 +225,15 @@ class lookup(Thread):
                     #doesn't seem to affect the results,  and it was fixed in later versions.
                     pass
                 else:
+                    trace("Problem processing host:", host)
                     #dnspython threw some strange exception...
                     raise e
 
     def run(self):
+        #This thread only needs one resolver before it can start looking.
+        self.resolver.nameservers += self.get_ns_blocking()
         while True:
+            ret = ''
             sub = self.in_q.get()
             if not sub:
                 #Perpetuate the terminator for all threads to see
@@ -94,11 +242,24 @@ class lookup(Thread):
                 self.out_q.put(False)
                 break
             else:
-                test = "%s.%s" % (sub, self.domain)
-                addr = self.check(test)
-                if addr and (not self.wildcards or addr not in self.wildcards):
-                    test = (test, str(addr))
-                    self.out_q.put(test)
+                test_domain = "%s.%s" % (sub, self.domain)
+                addrs = self.check(test_domain)
+                #self.wildcards is populated by the nameserver_pool() thread.
+                #This variable doesn't need a muetex, because it has a queue. 
+                #A queue ensure nameserver cannot be used before it's wildcard entries are found.
+                reject = False
+                if addrs:
+                    for a in addrs:
+                        a = str(a)
+                        if a in self.wildcards:
+                            reject= True
+                            #reject this domain.
+                            break;
+                        else:
+                            ret += a + ","
+                    if not reject:
+                        test = (test_domain, ret.strip(','))
+                        self.out_q.put(test)
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
@@ -118,7 +279,7 @@ def extract_subdomains(file_name):
             p = p[0:-1]
             #do we have a subdomain.domain left?
             if len(p) >= 1:
-                #print(str(p) + " : " + i)
+                trace(str(p), " : ", i)
                 for q in p:
                     if q :
                         #domain names can only be lower case.
@@ -133,68 +294,34 @@ def extract_subdomains(file_name):
     subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
     return subs_sorted
 
-def check_resolvers(file_name):
-    ret = []
-    resolver = dns.resolver.Resolver()
-    res_file = open(file_name).read()
-    for server in res_file.split("\n"):
-        server = server.strip()
-        if server:
-            resolver.nameservers = [server]
-            try:
-                resolver.query("www.google.com")
-                #should throw an exception before this line.
-                ret.append(server)
-            except:
-                pass
-    return ret
-
-def request_random_wildcard(base):
-    return dns.resolver.Resolver().query("would-never-be-a-fucking-domain-name-" + str(random.randint(1, 99999)) + "." + base)
-
-def run_target(target, hosts, resolve_list, thread_count, print_numeric, wildcard_sniff_limit):
-    #The target might have a wildcard dns record...
-    wildcards = False
-    try:
-        wildcards = bool(request_random_wildcard(target))
-        if wildcards:
-            wildcards = set()
-            sys.stderr.write("wildcard subdomains detected, sniffing for possible round robin IPs:\n")
-            for i in xrange(wildcard_sniff_limit):
-                sys.stderr.write(".")
-                sys.stderr.flush()
-                time.sleep(0.1)
-                wildcards.add(str(request_random_wildcard(target)[0]))
-            sys.stderr.write("\n")
-    except:
-        pass
+def run_target(target, subdomains, resolve_list, thread_count, print_addresses):
+    wildcards = set()
     in_q = queue.Queue()
     out_q = queue.Queue()
-    for h in hosts:
-        in_q.put(h)
+    #have a buffer of two new nameservers
+    resolve_q = queue.Queue(maxsize = 2)
+
+    #Make a source of fast nameservers avaiable for other threads.
+    nameserver_pool_thread = nameserver_pool(resolve_q, resolve_list, target, wildcards)
+    nameserver_pool_thread.start()
+    #A list of subdomains is the input
+    for s in subdomains:
+        in_q.put(s.strip())
     #Terminate the queue
     in_q.put(False)
-    step_size = int(len(resolve_list) / thread_count)
-    #Split up the resolver list between the threads. 
-    if step_size <= 0:
-        step_size = 1
-    step = 0
     for i in range(thread_count):
-        threads.append(lookup(in_q, out_q, target, wildcards , resolve_list[step:step + step_size]))
+        threads.append(lookup(in_q, out_q, resolve_q, target, wildcards))
         threads[-1].start()
-        step = (step + step_size) % len(resolve_list)
-    if step >= len(resolve_list):
-        step = 0
-
     threads_remaining = thread_count
     while True:
         try:
+            #The output is valid hostnames
             d = out_q.get(True, 10)
             #we will get an empty exception before this runs. 
             if not d:
                 threads_remaining -= 1
             else:
-                if not print_numeric:
+                if not print_addresses:
                     print(d[0])
                 else:
                     print("%s,%s" % (d[0], d[1]))
@@ -203,12 +330,44 @@ def run_target(target, hosts, resolve_list, thread_count, print_numeric, wildcar
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
+    nameserver_pool_thread.die()
+
+#exit handler for signals.  So ctrl+c will work,  even with py threads. 
+def killme(signum = 0, frame = 0):
+    os.kill(os.getpid(), 9)
+
+#Toggle debug output
+verbose = False
+def trace(*args, **kwargs):
+    if verbose:
+        for a in args:
+            sys.stderr.write(str(a))
+            sys.stderr.write(" ")
+        sys.stderr.write("\n")
+
+def error(*args, **kwargs):
+    for a in args:
+        sys.stderr.write(str(a))
+        sys.stderr.write(" ")
+    sys.stderr.write("\n")
+    sys.exit(1)
+
+def check_open(input_file):
+    ret = []
+    #If we can't find a resolver from an input file, then we need to improvise.
+    try:
+        ret = open(input_file).readlines()
+    except:
+        error("File not found:", input_file)
+    if not len(ret):
+        error("File is empty:", input_file)
+    return ret
 
 if __name__ == "__main__":
     base_path = os.path.dirname(os.path.realpath(__file__))
     parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--thread_count", dest = "thread_count",
-              default = 10, type = "int",
+              default = 16, type = "int",
               help = "(optional) Number of lookup theads to run,  more isn't always better. default=10")
     parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "subs.txt"),
               type = "string", help = "(optional) list of subdomains,  default='subs.txt'")
@@ -218,16 +377,16 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
     parser.add_option("-t", "--target_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
-    parser.add_option("-n", "--numeric", dest = "numeric", action = "store_true", default = False,
-              help = "(optional) Additionally prints numeric IP addresses for sub domains (default=off).")
-    parser.add_option("--wildcard_sniff_limit", dest = "wildcard_sniff_limit", type=int, default = 100,
-              help = "(optional) How many times to request wildcard domain IPs to add to the ignore list (default=100).")
-
-
+    parser.add_option("-a", "--addresses", dest = "addresses", action = "store_true", default = False,
+              help = "(optional) Print all IP addresses for sub domains (default=off).")
+    parser.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False,
+              help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
 
+    verbose = options.verbose
+
     if len(args) < 1 and options.filter == "" and options.targets == "":
-        parser.error("You must provie a target! Use -h for help.")
+        parser.error("You must provie a target. Use -h for help.")
 
     if options.filter != "":
         #cleanup this file and print it out
@@ -236,16 +395,19 @@ if __name__ == "__main__":
         sys.exit()
 
     if options.targets != "":
-        targets = open(options.targets).read().split("\n")
+        targets = check_open(options.targets)
     else:
         targets = args #multiple arguments on the cli:  ./subbrute.py google.com gmail.com yahoo.com
 
-    hosts = open(options.subs).read().split("\n")
+    subdomains = check_open(options.subs)
+    resolver_list = check_open(options.resolvers)
 
-    resolve_list = check_resolvers(options.resolvers)
-    threads = []
+    #Escliate signal to prevent zombies.
     signal.signal(signal.SIGINT, killme)
+    signal.signal(signal.SIGTSTP, killme)
+    signal.signal(signal.SIGQUIT, killme)
+    threads = []
     for target in targets:
         target = target.strip()
         if target:
-            run_target(target, hosts, resolve_list, options.thread_count, options.numeric, options.wildcard_sniff_limit)
+            run_target(target, subdomains, resolver_list, options.thread_count, options.addresses)
