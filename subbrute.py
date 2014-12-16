@@ -63,7 +63,6 @@ class nameserver_pool(Thread):
                 trace("Added nameserver:", nameserver)
                 keep_trying = False
             except Full:
-                print(e)
                 keep_trying = True
 
     def verify_nameservers(self, nameserver_list):
@@ -71,7 +70,7 @@ class nameserver_pool(Thread):
         for server in nameserver_list:
             if self.time_to_die:
                 #We are done here.
-                return True
+                break
             server = server.strip()
             if server:
                 self.resolver.nameservers = [server]
@@ -100,8 +99,6 @@ class nameserver_pool(Thread):
             sys.stderr.write('No nameservers found, trying fallback list.\n')
             #Try and fix it for the user:
             self.verify_nameservers(self.backup_resolver)
-        #We are out of nameservers, terminate the resolver queue
-        self.resolver_q.put(False)
 
     #Only add the nameserver to the queue if we can detect wildcards. 
     #Returns False on error.
@@ -153,7 +150,7 @@ class lookup(Thread):
 
     def __init__(self, in_q, out_q, resolver_q, domain, wildcards):
         Thread.__init__(self)
-        self.minimum_nameservers = 8
+        self.minimum_nameservers = 16
         self.in_q = in_q
         self.out_q = out_q
         self.resolver_q = resolver_q        
@@ -331,6 +328,7 @@ def run_target(target, subdomains, resolve_list, thread_count, print_addresses):
         if threads_remaining <= 0:
             break
     nameserver_pool_thread.die()
+    trace("Success")
 
 #exit handler for signals.  So ctrl+c will work,  even with py threads. 
 def killme(signum = 0, frame = 0):
@@ -369,12 +367,12 @@ if __name__ == "__main__":
     parser.add_option("-c", "--thread_count", dest = "thread_count",
               default = 16, type = "int",
               help = "(optional) Number of lookup theads to run,  more isn't always better. default=10")
-    parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "subs.txt"),
-              type = "string", help = "(optional) list of subdomains,  default='subs.txt'")
+    parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "names.txt"),
+              type = "string", help = "(optional) list of subdomains,  default='names.txt'")
     parser.add_option("-r", "--resolvers", dest = "resolvers", default = os.path.join(base_path, "resolvers.txt"),
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default='resolvers.txt'")
     parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
-              type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build subs.txt.")
+              type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")
     parser.add_option("-t", "--target_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
     parser.add_option("-a", "--addresses", dest = "addresses", action = "store_true", default = False,
