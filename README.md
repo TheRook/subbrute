@@ -13,6 +13,7 @@ Faster:
 New output:
 - -a will list all addresses associated with a subdomain
 - -v debug output,  to help developers/hackers debug subbrute.
+- -o output results to file.
 
 subdomain-bruteforcer v1.1
 =====================

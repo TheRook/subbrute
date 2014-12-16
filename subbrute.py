@@ -99,6 +99,8 @@ class nameserver_pool(Thread):
             sys.stderr.write('No nameservers found, trying fallback list.\n')
             #Try and fix it for the user:
             self.verify_nameservers(self.backup_resolver)
+        #End of the resolvers list.
+        self.resolver_q.put(False, timeout = 1)
 
     #Only add the nameserver to the queue if we can detect wildcards. 
     #Returns False on error.
@@ -291,7 +293,7 @@ def extract_subdomains(file_name):
     subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
     return subs_sorted
 
-def run_target(target, subdomains, resolve_list, thread_count, print_addresses):
+def run_target(target, subdomains, resolve_list, thread_count, print_addresses, output = False):
     wildcards = set()
     in_q = queue.Queue()
     out_q = queue.Queue()
@@ -319,9 +321,13 @@ def run_target(target, subdomains, resolve_list, thread_count, print_addresses):
                 threads_remaining -= 1
             else:
                 if not print_addresses:
-                    print(d[0])
+                    result = d[0]
                 else:
-                    print("%s,%s" % (d[0], d[1]))
+                    result = "%s,%s" % (d[0], d[1])
+                print(result)
+                if output:
+                    output.write(result + "\n")
+                    output.flush()
         except queue.Empty:
             pass
         #make sure everyone is complete
@@ -375,9 +381,11 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")
     parser.add_option("-t", "--target_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
-    parser.add_option("-a", "--addresses", dest = "addresses", action = "store_true", default = False,
+    parser.add_option("-o", "--output", dest = "output",  default = False,
+              help = "(optional) Output to file")    
+    parser.add_option("-a", "--addresses", action='store_true', dest = "addresses", default = False,
               help = "(optional) Print all IP addresses for sub domains (default=off).")
-    parser.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False,
+    parser.add_option("-v", "--verbose", action='store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
 
@@ -400,6 +408,13 @@ if __name__ == "__main__":
     subdomains = check_open(options.subs)
     resolver_list = check_open(options.resolvers)
 
+    output=False
+    if options.output:
+        try:
+            output = open(options.output, "w")
+        except:
+            error("Faild writing to file:", options.output)
+
     #Escliate signal to prevent zombies.
     signal.signal(signal.SIGINT, killme)
     signal.signal(signal.SIGTSTP, killme)
@@ -408,4 +423,4 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
-            run_target(target, subdomains, resolver_list, options.thread_count, options.addresses)
+            run_target(target, subdomains, resolver_list, options.thread_count, options.addresses, output)
