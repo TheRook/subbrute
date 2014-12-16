@@ -100,7 +100,10 @@ class nameserver_pool(Thread):
             #Try and fix it for the user:
             self.verify_nameservers(self.backup_resolver)
         #End of the resolvers list.
-        self.resolver_q.put(False, timeout = 1)
+        try:
+            self.resolver_q.put(False, timeout = 1)
+        except:
+            pass
 
     #Only add the nameserver to the queue if we can detect wildcards. 
     #Returns False on error.
@@ -371,7 +374,7 @@ if __name__ == "__main__":
     base_path = os.path.dirname(os.path.realpath(__file__))
     parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--thread_count", dest = "thread_count",
-              default = 16, type = "int",
+              default = 10, type = "int",
               help = "(optional) Number of lookup theads to run,  more isn't always better. default=10")
     parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "names.txt"),
               type = "string", help = "(optional) list of subdomains,  default='names.txt'")
