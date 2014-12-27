@@ -29,6 +29,10 @@ python subroute.py -f full.html > my_subs.txt
 
 I used this feature to create subs.txt which contains 31291 subdomains.  subs_small.txt was stolen from fierce2 which contains 1896 subdomains.   If you find more subdomains to add,  open a bug report and I'll be happy to add them!
 
+No install required for Windows,  just cd into the 'windows' folder:
+
+subbrute.exe google.com
+
 Easy to install:
 You just need http://www.dnspython.org/ and python2.7 or python3.  This tool should work under any operating system:  bsd, osx, windows, linux...
 
@@ -37,10 +41,6 @@ You just need http://www.dnspython.org/ and python2.7 or python3.  This tool sho
 Under Ubuntu/Debian all you need is:
 
 sudo apt-get install python-dnspython
-
-or
-
-pip install dnspython
 
 On other operating systems you may have to install dnspython manually:
 
