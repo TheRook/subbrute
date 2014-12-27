@@ -2,7 +2,7 @@ from cx_Freeze import setup, Executable
 
 # Dependencies are automatically detected, but it might need
 # fine tuning.
-buildOptions = dict(packages = ["dns"], excludes = [])
+buildOptions = dict(packages = ["dns"], excludes = [], include_files = ['resolvers.txt', 'names.txt', 'LICENSE'])
 
 executables = [
     Executable('subbrute.py', 'Console')

@@ -13,18 +13,27 @@ import uuid
 import random
 import ctypes
 import dns.resolver
-#The 'multiprocessing' library does not rely upon a Global Interpreter Lock (GIL) 
-import multiprocessing
-#We need this library for exceptions.
+
+#Python 2.x and 3.x compatiablity
+#We need the Queue library for exception handling
 try:
     import Queue
 except:
     import queue as Queue
 
+#The 'multiprocessing' library does not rely upon a Global Interpreter Lock (GIL)
+import multiprocessing
+
+#Microsoft compatiablity
+if  sys.platform.startswith('win'):
+    #Drop-in replacement,  subbrute + multiprocessing throws exceptions on windows.
+    import threading
+    multiprocessing.Process = threading.Thread
+
 class verify_nameservers(multiprocessing.Process):
 
     def __init__(self, resolver_q, resolver_list, target, wildcards):
-        multiprocessing.Process.__init__(self, target=self.run)
+        multiprocessing.Process.__init__(self, target = self.run)
         self.daemon = True
         signal_init()
 
@@ -154,7 +163,7 @@ class verify_nameservers(multiprocessing.Process):
 class lookup(multiprocessing.Process):
 
     def __init__(self, in_q, out_q, resolver_q, domain, wildcards):
-        multiprocessing.Process.__init__(self, target=self.run)
+        multiprocessing.Process.__init__(self, target = self.run)
         signal_init()
         self.required_nameservers = 16
         self.in_q = in_q
@@ -349,9 +358,13 @@ def killproc(signum = 0, frame = 0, pid = False):
     if not pid:
         pid = os.getpid()
     if sys.platform.startswith('win'):
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(1, 0, pid)
-        kernel32.TerminateProcess(handle, 0)
+        try:
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(1, 0, pid)
+            kernel32.TerminateProcess(handle, 0)
+        except:
+            #Oah windows.
+            pass
     else:
         os.kill(pid, 9)
 
@@ -387,11 +400,20 @@ def check_open(input_file):
 def signal_init():
     #Escliate signal to prevent zombies.
     signal.signal(signal.SIGINT, killproc)
-    signal.signal(signal.SIGTSTP, killproc)
-    signal.signal(signal.SIGQUIT, killproc)
+    try:
+        signal.signal(signal.SIGTSTP, killproc)
+        signal.signal(signal.SIGQUIT, killproc)
+    except:
+        #Windows
+        pass
 
 if __name__ == "__main__":
-    base_path = os.path.dirname(os.path.realpath(__file__))
+    if getattr(sys, 'frozen', False):
+        # cx_freeze windows:
+        base_path = os.path.dirname(sys.executable)
+    else:
+        #everything else:
+        base_path = os.path.dirname(os.path.realpath(__file__))
     parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--process_count", dest = "process_count",
               default = 32, type = "int",
