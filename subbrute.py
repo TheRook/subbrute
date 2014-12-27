@@ -96,7 +96,7 @@ class verify_nameservers(multiprocessing.Process):
         random.shuffle(self.resolver_list)
         if not self.verify_nameservers(self.resolver_list):
             #This should never happen,  inform the user.
-            sys.stderr.write('No nameservers found, trying fallback list.\n')
+            sys.stderr.write('Warning: No nameservers found, trying fallback list.\n')
             #Try and fix it for the user:
             self.verify_nameservers(self.backup_resolver)
         #End of the resolvers list.
@@ -156,7 +156,7 @@ class lookup(multiprocessing.Process):
     def __init__(self, in_q, out_q, resolver_q, domain, wildcards):
         multiprocessing.Process.__init__(self, target=self.run)
         signal_init()
-        self.minimum_nameservers = 16
+        self.required_nameservers = 16
         self.in_q = in_q
         self.out_q = out_q
         self.resolver_q = resolver_q        
@@ -191,7 +191,7 @@ class lookup(multiprocessing.Process):
     def check(self, host):
         trace("Checking:", host)
         retries = 0        
-        if len(self.resolver.nameservers) <= self.minimum_nameservers:
+        if len(self.resolver.nameservers) <= self.required_nameservers:
             #This process needs more nameservers,  lets see if we have one avaible
             self.resolver.nameservers += self.get_ns()
         #Ok we should be good to go.
@@ -430,11 +430,14 @@ if __name__ == "__main__":
 
     subdomains = check_open(options.subs)
     resolver_list = check_open(options.resolvers)
+    
+    if (len(resolver_list) / 16) < options.process_count:
+        sys.stderr.write('Warning: Fewer than 16 resovlers per thread, consider adding more nameservers to resolvers.txt.\n')
 
     output=False
     if options.output:
-        try: 
-            output = open(options.output, "w")
+        try:
+             output = open(options.output, "w")
         except:
             error("Faild writing to file:", options.output)
 
