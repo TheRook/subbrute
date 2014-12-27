@@ -1,7 +1,7 @@
 
 subdomain-bruteforcer (SubBrute)
 =====================
-SubBrute is a community driven project with the goal of being the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open revolvers as a kind of proxy to circumvents DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a bit of anonymity, as SubBrute does not send traffic directly to the target's name servers.
+SubBrute is a community driven project with the goal of being the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open revolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a bit of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
 Whats new in v1.1?
 =====================

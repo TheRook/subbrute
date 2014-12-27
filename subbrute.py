@@ -417,20 +417,20 @@ if __name__ == "__main__":
     parser = optparse.OptionParser("usage: %prog [options] target")
     parser.add_option("-c", "--process_count", dest = "process_count",
               default = 32, type = "int",
-              help = "(optional) Number of lookup theads to run. default=32")
+              help = "(optional) Number of lookup theads to run. default = 32")
     parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "names.txt"),
-              type = "string", help = "(optional) list of subdomains,  default='names.txt'")
+              type = "string", help = "(optional) list of subdomains,  default = 'names.txt'")
     parser.add_option("-r", "--resolvers", dest = "resolvers", default = os.path.join(base_path, "resolvers.txt"),
-              type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default='resolvers.txt'")
+              type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
     parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")
     parser.add_option("-t", "--target_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
     parser.add_option("-o", "--output", dest = "output",  default = False,
               help = "(optional) Output to file")    
-    parser.add_option("-a", "--addresses", action='store_true', dest = "addresses", default = False,
-              help = "(optional) Print all IP addresses for sub domains (default=off).")
-    parser.add_option("-v", "--verbose", action='store_true', dest = "verbose", default = False,
+    parser.add_option("-a", "--addresses", action = 'store_true', dest = "addresses", default = False,
+              help = "(optional) Print all IP addresses for sub domains (default = off).")
+    parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
 
@@ -456,7 +456,7 @@ if __name__ == "__main__":
     if (len(resolver_list) / 16) < options.process_count:
         sys.stderr.write('Warning: Fewer than 16 resovlers per thread, consider adding more nameservers to resolvers.txt.\n')
 
-    output=False
+    output = False
     if options.output:
         try:
              output = open(options.output, "w")
