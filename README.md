@@ -38,6 +38,10 @@ Under Ubuntu/Debian all you need is:
 
 sudo apt-get install python-dnspython
 
+or
+
+pip install dnspython
+
 On other operating systems you may have to install dnspython manually:
 
 http://www.dnspython.org/ 
