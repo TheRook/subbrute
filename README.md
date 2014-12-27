@@ -1,3 +1,8 @@
+
+subdomain-bruteforcer (SubBrute)
+=====================
+SubBrute is a community driven project with the goal of being the fastest and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute that it uses  open revolvers as a kind of proxy to circumvents DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design provides a bit of anonymity, as SubBrute does not send traffic directly to the target's name servers.
+
 Whats new in v1.1?
 =====================
 This version merges pull requests from the community; changes from JordanMilne, KxCode and rc0r is in this release.  In SubBrute 1.1 we fixed bugs, improved  accuracy, and efficiency.  As requested, this project is now GPLv3.
@@ -15,10 +20,8 @@ New output:
 - -v debug output,  to help developers/hackers debug subbrute.
 - -o output results to file.
 
-subdomain-bruteforcer v1.1
+More Information
 =====================
-
-SubBrute is a community driven project with the goal of being the fastest and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it bypasses DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A), by using open revolvers as a kind of proxy.  This design provides a bit of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
 The 'names.txt' list  was created using some creative Google hacks with additions from the community.  SubBrute has a feature to build your own subordinate lists by matching sub-domains with regular expression and sorting by frequency of occurrence:
 
