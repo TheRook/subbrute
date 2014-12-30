@@ -145,7 +145,7 @@ class verify_nameservers(multiprocessing.Process):
                         w = str(w)
                         if w not in self.wildcards:
                             #wildcards were detected.
-                            self.wildcards.add(w)
+                            self.wildcards[w] = None
                             #We found atleast one wildcard, look for more.
                             looking_for_wildcards = True
             except Exception as e:
@@ -308,7 +308,7 @@ def extract_subdomains(file_name):
     return subs_sorted
 
 def run_target(target, subdomains, resolve_list, process_count, print_addresses, output = False):
-    wildcards = set()
+    wildcards = multiprocessing.Manager().dict()
     in_q = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
     #have a buffer of two new nameservers that lookup processes can draw from.
