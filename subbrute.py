@@ -17,9 +17,9 @@ import dns.resolver
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
 try:
-    import Queue
-except:
     import queue as Queue
+except:
+    import Queue
 
 #The 'multiprocessing' library does not rely upon a Global Interpreter Lock (GIL)
 import multiprocessing
@@ -29,7 +29,6 @@ if  sys.platform.startswith('win'):
     #Drop-in replacement,  subbrute + multiprocessing throws exceptions on windows.
     import threading
     multiprocessing.Process = threading.Thread
-    multiprocessing.Queue = Queue
 
 class verify_nameservers(multiprocessing.Process):
 
@@ -64,6 +63,9 @@ class verify_nameservers(multiprocessing.Process):
             resolver = dns.resolver.Resolver()
         self.resolver = resolver
 
+    def end(self):
+        self.time_to_die
+
     #This process cannot block forever,  it  needs to check if its time to die.
     def add_nameserver(self, nameserver):
         keep_trying = True
@@ -72,8 +74,9 @@ class verify_nameservers(multiprocessing.Process):
                 self.resolver_q.put(nameserver, timeout = 1)
                 trace("Added nameserver:", nameserver)
                 keep_trying = False
-            except Queue.Full:
-                keep_trying = True
+            except Exception as e:
+                if type(e) == Queue.Full or str(type(e)) == "<class 'queue.Full'>":
+                    keep_trying = True
 
     def verify_nameservers(self, nameserver_list):
         added_resolver = False
@@ -343,13 +346,21 @@ def run_target(target, subdomains, resolve_list, process_count, print_addresses,
                 if output:
                     output.write(result + "\n")
                     output.flush()
-        except Queue.Empty:
-            pass
+        except Exception as e:
+            #cx_freeze caues queue.Empty instead of Queue.Empty :(
+            if type(e) == Queue.Empty or str(type(e)) == "<class 'queue.Empty'>":
+                pass
+            else:
+                raise(e)
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
     #We no longer require name servers.
-    killproc(pid = verify_nameservers_proc.pid)
+    try:
+        killproc(pid = verify_nameservers_proc.pid)
+    except:
+        #Windows threading.tread
+        verify_nameservers_proc.end()
     trace("End")
 
 #exit handler for signals.  So ctrl+c will work. 
@@ -412,6 +423,7 @@ if __name__ == "__main__":
     if getattr(sys, 'frozen', False):
         # cx_freeze windows:
         base_path = os.path.dirname(sys.executable)
+        multiprocessing.freeze_support()
     else:
         #everything else:
         base_path = os.path.dirname(os.path.realpath(__file__))
@@ -433,6 +445,7 @@ if __name__ == "__main__":
               help = "(optional) Print all IP addresses for sub domains (default = off).")
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
+    #parser.add_option("-m", "--multiprocessing-fork",  dest = "multiprocessing_fork", default = False)
     (options, args) = parser.parse_args()
 
     verbose = options.verbose
