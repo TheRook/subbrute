@@ -29,6 +29,7 @@ if  sys.platform.startswith('win'):
     #Drop-in replacement,  subbrute + multiprocessing throws exceptions on windows.
     import threading
     multiprocessing.Process = threading.Thread
+    multiprocessing.Queue = Queue
 
 class verify_nameservers(multiprocessing.Process):
 
