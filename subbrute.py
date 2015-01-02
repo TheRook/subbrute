@@ -64,7 +64,7 @@ class verify_nameservers(multiprocessing.Process):
         self.resolver = resolver
 
     def end(self):
-        self.time_to_die
+        self.time_to_die = True
 
     #This process cannot block forever,  it  needs to check if its time to die.
     def add_nameserver(self, nameserver):
@@ -230,7 +230,7 @@ class lookup(multiprocessing.Process):
                     retries += 1
                 elif type(e) == dns.resolver.Timeout:
                     trace("lookup failure:", host, retries)
-                    #Try a backup list twice,  give our main list a chance to cool.
+                    #Check if it is time to give up.
                     if retries >= 3:
                         #Maybe another process can take a crack at it.
                         self.in_q.put(host)
@@ -252,10 +252,25 @@ class lookup(multiprocessing.Process):
         while True:
             ret = ''
             sub = self.in_q.get()
+            #Check if we have hit the end marker
+            while not sub:
+                #Look for a re-queued lookup
+                try:
+                    sub = self.in_q.get(blocking = False)
+                    #if we took the end marker of the queue we need to put it back
+                    if sub:
+                        self.in_q.put(False)
+                except:#Queue.Empty
+                    trace('End of work queue')
+                    #There isn't an item behind the end marker
+                    sub = False
+                    break
+
+            #Is this the end all work that needs to be done?
             if not sub:
-                #Perpetuate the terminator for all threads to see
+                #Perpetuate the end marker for all threads to see
                 self.in_q.put(False)
-                #Notify the parent of our death of natural causes.
+                #Notify the parent that we have died of natural causes
                 self.out_q.put(False)
                 break
             else:
@@ -355,6 +370,7 @@ def run_target(target, subdomains, resolve_list, process_count, print_addresses,
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
+    trace("killing nameserver process")
     #We no longer require name servers.
     try:
         killproc(pid = verify_nameservers_proc.pid)
@@ -445,7 +461,6 @@ if __name__ == "__main__":
               help = "(optional) Print all IP addresses for sub domains (default = off).")
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
-    #parser.add_option("-m", "--multiprocessing-fork",  dest = "multiprocessing_fork", default = False)
     (options, args) = parser.parse_args()
 
     verbose = options.verbose
