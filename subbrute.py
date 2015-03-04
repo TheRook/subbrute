@@ -241,6 +241,10 @@ class lookup(multiprocessing.Process):
                     #Some old versions of dnspython throw this error,
                     #doesn't seem to affect the results,  and it was fixed in later versions.
                     pass
+                elif type(e) == TypeError:
+                    # We'll get here if the number procs > number of resolvers.
+                    self.in_q.put(host)
+                    return False
                 else:
                     trace("Problem processing host:", host)
                     #dnspython threw some strange exception...
