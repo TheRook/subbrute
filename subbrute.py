@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
-#SubBrute v1.1
+#SubBrute v1.2
 #A (very) fast subdomain enumeration tool.
 #Written by rook
 #
@@ -13,7 +13,7 @@ import uuid
 import random
 import ctypes
 import dns.resolver
-
+from pprint import pprint
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
 try:
@@ -32,7 +32,7 @@ if  sys.platform.startswith('win'):
 
 class verify_nameservers(multiprocessing.Process):
 
-    def __init__(self, resolver_q, resolver_list, target, wildcards):
+    def __init__(self, resolver_q, resolver_list, target, wildcards, record_type):
         multiprocessing.Process.__init__(self, target = self.run)
         self.daemon = True
         signal_init()
@@ -40,6 +40,7 @@ class verify_nameservers(multiprocessing.Process):
         self.time_to_die = False
         self.resolver_q = resolver_q
         self.wildcards = wildcards
+        self.record_type = record_type
         self.resolver_list = resolver_list
         resolver = dns.resolver.Resolver()
         #The domain provided by the user.
@@ -57,7 +58,7 @@ class verify_nameservers(multiprocessing.Process):
             #Lets test the letancy of our connection.
             #Google's DNS server should be an ideal time test.
             resolver.nameservers = ['8.8.8.8']
-            resolver.query(self.most_popular_website, "A")
+            resolver.query(self.most_popular_website, self.record_type)
         except:
             #Our connection is slower than a junebug in molasses
             resolver = dns.resolver.Resolver()
@@ -142,7 +143,7 @@ class verify_nameservers(multiprocessing.Process):
             test_counter -= 1            
             try:
                 testdomain = "%s.%s" % (uuid.uuid4().hex, host)
-                wildtest = self.resolver.query(testdomain, "A")
+                wildtest = self.resolver.query(testdomain, self.record_type)
                 #This 'A' record may contain a list of wildcards.
                 if wildtest:
                     for w in wildtest:
@@ -201,8 +202,9 @@ class lookup(multiprocessing.Process):
             ret = []
         return ret
 
-    def check(self, host):
+    def check(self, host, record_type = "A", timeout_retries = 0):
         trace("Checking:", host)
+        cname_record = []
         retries = 0        
         if len(self.resolver.nameservers) <= self.required_nameservers:
             #This process needs more nameservers,  lets see if we have one avaible
@@ -211,12 +213,37 @@ class lookup(multiprocessing.Process):
         while True:
             try:
                 #Query the nameserver, this is not simple...
-                return self.resolver.query(host)
+                if not record_type:
+                    return self.resolver.query(host)
+                if record_type != "CNAME":
+                    return self.resolver.query(host, record_type)
+                else:
+                    #A max 20 lookups
+                    for x in range(20):
+                        #print host
+                        try:
+                            resp = self.resolver.query(host, record_type)
+                        except dns.resolver.NoAnswer:
+                            resp = False
+                            pass
+                        if resp and resp[0]:
+                            #pprint(vars(resp.response))
+                            #pprint(vars(resp.canonical_name))
+                            #pprint(vars(resp))
+                            #pprint(vars(resp))
+                            #print(rdata.canonical_name)
+                            host = str(resp[0]).rstrip(".")
+                            cname_record.append(host)
+                            #print("host:"+host)
+                        else:
+                            #print cname_record
+                            #print cname_record
+                            return cname_record
             except Exception as e:
                 if type(e) == dns.resolver.NoNameservers:
                     #We should never be here.
                     #We must block,  another process should try this host.
-                    self.in_q.put(host)
+                    self.in_q.put((host, record_type, 0))
                     self.resolver.nameservers += self.get_ns_blocking()
                     return False
                 elif type(e) == dns.resolver.NXDOMAIN:
@@ -232,8 +259,14 @@ class lookup(multiprocessing.Process):
                     trace("lookup failure:", host, retries)
                     #Check if it is time to give up.
                     if retries >= 3:
-                        #Maybe another process can take a crack at it.
-                        self.in_q.put(host)
+                        if timeout_retries > 3:
+                            #Sometimes 'internal use' subdomains will timeout for every request.
+                            #As far as I'm concerned, the authorative name server has told us this domain exists,
+                            #we just can't know the address value using this method.
+                            return ['Mutiple Query Timeout - External address resolution was restricted ']
+                        else:
+                            #Maybe another process can take a crack at it.
+                            self.in_q.put((host, record_type, timeout_retries + 1))
                         return False
                     retries += 1
                     #retry...
@@ -243,7 +276,7 @@ class lookup(multiprocessing.Process):
                     pass
                 elif type(e) == TypeError:
                     # We'll get here if the number procs > number of resolvers.
-                    self.in_q.put(host)
+                    self.in_q.put((host, record_type, 0))
                     return False
                 else:
                     trace("Problem processing host:", host)
@@ -251,51 +284,60 @@ class lookup(multiprocessing.Process):
                     raise e
 
     def run(self):
-        #This process only needs one resolver before it can start looking.
+        #This process needs one resolver before it can start looking.
         self.resolver.nameservers += self.get_ns_blocking()
         while True:
-            ret = ''
-            sub = self.in_q.get()
+            found_addresses = []
+            work = self.in_q.get()
             #Check if we have hit the end marker
-            while not sub:
+            while not work:
                 #Look for a re-queued lookup
                 try:
-                    sub = self.in_q.get(blocking = False)
+                    work = self.in_q.get(blocking = False)
                     #if we took the end marker of the queue we need to put it back
-                    if sub:
+                    if work:
                         self.in_q.put(False)
                 except:#Queue.Empty
                     trace('End of work queue')
                     #There isn't an item behind the end marker
-                    sub = False
+                    work = False
                     break
 
             #Is this the end all work that needs to be done?
-            if not sub:
+            if not work:
                 #Perpetuate the end marker for all threads to see
                 self.in_q.put(False)
                 #Notify the parent that we have died of natural causes
                 self.out_q.put(False)
                 break
             else:
-                test_domain = "%s.%s" % (sub, self.domain)
-                addrs = self.check(test_domain)
+                if len(work) == 3:
+                    #keep track of how many times this lookup has timedout.
+                    (hostname, record_type, timeout_retries) = work
+                    response = self.check(hostname, record_type, timeout_retries)
+                else:
+                    (hostname, record_type) = work
+                    response = self.check(hostname, record_type) 
+                sys.stdout.flush()
+                trace(response)                  
                 #self.wildcards is populated by the verify_nameservers() thread.
                 #This variable doesn't need a muetex, because it has a queue. 
                 #A queue ensure nameserver cannot be used before it's wildcard entries are found.
                 reject = False
-                if addrs:
-                    for a in addrs:
+                if response:
+                    for a in response:
                         a = str(a)
                         if a in self.wildcards:
+                            trace("resovled wildcard:", hostname)
                             reject= True
                             #reject this domain.
                             break;
                         else:
-                            ret += a + ","
+                            found_addresses.append(a)
                     if not reject:
-                        test = (test_domain, ret.strip(','))
-                        self.out_q.put(test)
+                        #This request is filled, send the results back  
+                        result = (hostname, record_type, found_addresses)
+                        self.out_q.put(result)
 
 #Return a list of unique sub domains,  sorted by frequency.
 def extract_subdomains(file_name):
@@ -330,19 +372,23 @@ def extract_subdomains(file_name):
     subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
     return subs_sorted
 
-def run_target(target, subdomains, resolve_list, process_count, print_addresses, output = False):
+def run_target(target, subdomains, resolve_list, process_count, record_type, output = False):
     wildcards = multiprocessing.Manager().dict()
     in_q = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
-    #have a buffer of two new nameservers that lookup processes can draw from.
+    #have a buffer of at most two new nameservers that lookup processes can draw from.
     resolve_q = multiprocessing.Queue(maxsize = 2)
 
     #Make a source of fast nameservers avaiable for other processes.
-    verify_nameservers_proc = verify_nameservers(resolve_q, resolve_list, target, wildcards)
+    verify_nameservers_proc = verify_nameservers(resolve_q, resolve_list, target, wildcards, record_type)
     verify_nameservers_proc.start()
     #A list of subdomains is the input
     for s in subdomains:
-        in_q.put(str(s).strip())
+        s = str(s).strip()
+        if s:
+            hostname = "%s.%s" % (s, target)
+            work = (hostname, record_type)
+            in_q.put(work)
     #Terminate the queue
     in_q.put(False)
     for i in range(process_count):
@@ -352,16 +398,18 @@ def run_target(target, subdomains, resolve_list, process_count, print_addresses,
     while True:
         try:
             #The output is valid hostnames
-            d = out_q.get(True, 10)
+            result = out_q.get(True, 10)
             #we will get an empty exception before this runs. 
-            if not d:
+            if not result:
                 threads_remaining -= 1
             else:
-                if not print_addresses:
-                    result = d[0]
+                (hostname, record_type, response) = result
+                if not record_type:
+                    result = hostname
                 else:
-                    result = "%s,%s" % (d[0], d[1])
+                    result = "%s,%s" % (hostname, ",".join(response).strip(","))
                 print(result)
+                sys.stdout.flush()
                 if output:
                     output.write(result + "\n")
                     output.flush()
@@ -427,7 +475,7 @@ def check_open(input_file):
         error("File is empty:", input_file)
     return ret
 
-#Every 'multiprocessing' process needs to register this.
+#Every 'multiprocessing' process needs a signal handler.
 #All processes need to die, we don't want to leave zombies.
 def signal_init():
     #Escliate signal to prevent zombies.
@@ -461,8 +509,12 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
     parser.add_option("-o", "--output", dest = "output",  default = False,
               help = "(optional) Output to file")    
-    parser.add_option("-a", "--addresses", action = 'store_true', dest = "addresses", default = False,
-              help = "(optional) Print all IP addresses for sub domains (default = off).")
+    parser.add_option("-a", "-A", action = 'store_true', dest = "ipv4", default = False,
+              help = "(optional) Print all IPv4 addresses for sub domains (default = off).")
+    parser.add_option("--aaaa", "--AAAA", action = 'store_true', dest = "ipv6", default = False,
+              help = "(optional) Print all IPv6 addresses for sub domains (default = off).")      
+    parser.add_option("--cname", "--CNAME", action = 'store_true', dest = "cname", default = False,
+              help = "(optional) Print all cname lookups for sub domains (default = off).")      
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
@@ -496,8 +548,16 @@ if __name__ == "__main__":
         except:
             error("Faild writing to file:", options.output)
 
+    record_type = False
+    if options.ipv4:
+        record_type="A"
+    elif options.ipv6:
+        record_type="AAAA"
+    elif options.cname:
+        record_type="CNAME"
+    
     threads = []
     for target in targets:
         target = target.strip()
         if target:
-            run_target(target, subdomains, resolver_list, options.process_count, options.addresses, output)
+            run_target(target, subdomains, resolver_list, options.process_count, record_type, output)
