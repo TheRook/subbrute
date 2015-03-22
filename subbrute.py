@@ -13,6 +13,7 @@ import uuid
 import random
 import ctypes
 import dns.resolver
+import dns.rdatatype
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -40,7 +41,9 @@ class verify_nameservers(multiprocessing.Process):
         self.time_to_die = False
         self.resolver_q = resolver_q
         self.wildcards = wildcards
-        self.record_type = record_type
+        self.record_type = "A"
+        if record_type == "AAAA":
+            self.record_type = record_type
         self.resolver_list = resolver_list
         resolver = dns.resolver.Resolver()
         #The domain provided by the user.
@@ -99,10 +102,10 @@ class verify_nameservers(multiprocessing.Process):
                             self.add_nameserver(server)
                             added_resolver = True
                         else:
-                            trace("Wildcard reject:", server)
+                            trace("Rejected nameserver - wildcard:", server)
                 except Exception as e:
                     #Rejected server :(
-                    trace("Rejected nameserver:", server, type(e)) 
+                    trace("Rejected nameserver - unreliable:", server, type(e)) 
         return added_resolver
 
     def run(self):
@@ -269,6 +272,8 @@ class lookup(multiprocessing.Process):
                     # We'll get here if the number procs > number of resolvers.
                     self.in_q.put((host, record_type, 0))
                     return False
+                elif type(e) == dns.rdatatype.UnknownRdatatype:
+                    error("DNS record type not supported:", record_type)
                 else:
                     trace("Problem processing host:", host)
                     #dnspython threw some strange exception...
@@ -404,7 +409,7 @@ def run_target(target, subdomains, resolve_list, process_count, record_type, out
                     output.write(result + "\n")
                     output.flush()
         except Exception as e:
-            #cx_freeze caues queue.Empty instead of Queue.Empty :(
+            #The cx_freeze version uses queue.Empty instead of Queue.Empty :(
             if type(e) == Queue.Empty or str(type(e)) == "<class 'queue.Empty'>":
                 pass
             else:
@@ -495,7 +500,7 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
     parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
               type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")
-    parser.add_option("-t", "--target_file", dest = "targets", default = "",
+    parser.add_option("-t", "--targets_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
     parser.add_option("-o", "--output", dest = "output",  default = False,
               help = "(optional) Output to file")    
@@ -504,7 +509,9 @@ if __name__ == "__main__":
     parser.add_option("--aaaa", "--AAAA", action = 'store_true', dest = "ipv6", default = False,
               help = "(optional) Print all IPv6 addresses for sub domains (default = off).")      
     parser.add_option("--cname", "--CNAME", action = 'store_true', dest = "cname", default = False,
-              help = "(optional) Print all cname lookups for sub domains (default = off).")      
+              help = "(optional) Print all cname lookups for sub domains (default = off).")
+    parser.add_option("--type", dest = "type", default = False,
+              type = "string", help = "(optional) Print all reponses for an arbitrary DNS record type (TXT, SOA, MX...)")                  
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
@@ -545,7 +552,9 @@ if __name__ == "__main__":
         record_type="AAAA"
     elif options.cname:
         record_type="CNAME"
-    
+    if options.type:
+        record_type = str(options.type).upper()
+
     threads = []
     for target in targets:
         target = target.strip()

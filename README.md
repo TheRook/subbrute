@@ -7,6 +7,7 @@ Whats new in v1.2?
 =====================
 - --aaaa enumerate ipv6 AAAA records
 - --cname enumerate cname records
+- --type enumerate an arbitrary record type (SOA, TXT, MX...)
 - hidden subdomain detection
 
 Whats new in v1.1?
