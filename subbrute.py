@@ -13,7 +13,7 @@ import uuid
 import random
 import ctypes
 import dns.resolver
-from pprint import pprint
+
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
 try:
@@ -220,24 +220,15 @@ class lookup(multiprocessing.Process):
                 else:
                     #A max 20 lookups
                     for x in range(20):
-                        #print host
                         try:
                             resp = self.resolver.query(host, record_type)
                         except dns.resolver.NoAnswer:
                             resp = False
                             pass
                         if resp and resp[0]:
-                            #pprint(vars(resp.response))
-                            #pprint(vars(resp.canonical_name))
-                            #pprint(vars(resp))
-                            #pprint(vars(resp))
-                            #print(rdata.canonical_name)
                             host = str(resp[0]).rstrip(".")
                             cname_record.append(host)
-                            #print("host:"+host)
                         else:
-                            #print cname_record
-                            #print cname_record
                             return cname_record
             except Exception as e:
                 if type(e) == dns.resolver.NoNameservers:
@@ -302,7 +293,6 @@ class lookup(multiprocessing.Process):
                     #There isn't an item behind the end marker
                     work = False
                     break
-
             #Is this the end all work that needs to be done?
             if not work:
                 #Perpetuate the end marker for all threads to see
