@@ -5,10 +5,11 @@ SubBrute is a community driven project with the goal of creating the fastest, an
 
 Whats new in v1.2?
 =====================
+In this version we are opening up SubBrute's fast DNS resolution pipeline is used for any DNS record type. SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes when the subdomain only allows for internal resolution. 
 - --aaaa enumerate ipv6 AAAA records
 - --cname enumerate cname records
 - --type enumerate an arbitrary record type (SOA, TXT, MX...)
-- hidden subdomain detection
+- Restricted subdomain resolution detection
 
 Whats new in v1.1?
 =====================

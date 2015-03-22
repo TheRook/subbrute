@@ -2,7 +2,10 @@
 #
 #SubBrute v1.2
 #A (very) fast subdomain enumeration tool.
-#Written by rook
+#
+#Maintained by rook
+#Contributors:
+#JordanMilne, KxCode, rc0r, memoryprint, ppaulojr  
 #
 import re
 import optparse
