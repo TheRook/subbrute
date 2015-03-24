@@ -16,6 +16,7 @@ The big news in this version is SubBrute is now a recursive DNS-spider, and also
 	... 162 domain found ...
 
 - The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records:
+```
 	./subbrute.py -s google.names google.com --type TXT
 		google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
 		adwords.google.com,"v=spf1 redirect=google.com"
@@ -24,6 +25,7 @@ The big news in this version is SubBrute is now a recursive DNS-spider, and also
 		blog.google.com,www.blogger.com,blogger.l.google.com
 		groups.google.com,groups.l.google.com
 		...
+```
 
 -Do you want to use SubBrute in your python projects? Consider the new library interface:
 	import subbrute
