@@ -403,7 +403,7 @@ def extract_subdomains(file_name):
     subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
     return subs_sorted
 
-def print_target(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 32, output = False):
+def print_target(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, output = False):
     for result in run(target, record_type, subdomains, resolve_list, process_count):
         (hostname, record_type, response) = result
         if not record_type:
@@ -416,7 +416,7 @@ def print_target(target, record_type = None, subdomains = "names.txt", resolve_l
             output.write(result + "\n")
             output.flush()
 
-def run(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 32):
+def run(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16):
     subdomains = check_open(subdomains)
     resolve_list = check_open(resolve_list)
     if (len(resolve_list) / 16) < process_count:
@@ -565,8 +565,8 @@ if __name__ == "__main__":
     parser.add_option("--type", dest = "type", default = False,
               type = "string", help = "(optional) Print all reponses for an arbitrary DNS record type (CNAME, AAAA, TXT, SOA, MX...)")                  
     parser.add_option("-c", "--process_count", dest = "process_count",
-              default = 32, type = "int",
-              help = "(optional) Number of lookup theads to run. default = 32")    
+              default = 16, type = "int",
+              help = "(optional) Number of lookup theads to run. default = 16")    
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
