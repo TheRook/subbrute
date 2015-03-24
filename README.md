@@ -11,12 +11,11 @@ The big news in this version is SubBrute is now a recursive DNS-spider, and also
 - -s can now read subdomains from results files.
 - SubBrute is now a library  subbrute.run()!
 - Restricted subdomain resolution detection
--New useage - map out all subdomains, and enumerate other DNS record types:
-./subbrute.py google.com -o google.names
-	... 162 domain found ...
-
-- The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records:
+- New useage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands will map out all subdomains, and then enumerate other DNS record types.
 ```
+	./subbrute.py google.com -o google.names
+		... 162 domain found ...
+
 	./subbrute.py -s google.names google.com --type TXT
 		google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
 		adwords.google.com,"v=spf1 redirect=google.com"
