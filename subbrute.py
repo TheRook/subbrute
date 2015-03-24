@@ -362,7 +362,7 @@ def extract_hosts(data, hostname):
     ret = []
     hosts = re.findall(host_match, data)
     for fh in hosts:
-        host = fh.rstrip(". ")
+        host = fh.rstrip(".")
         #Is this host in scope?
         if host.endswith(hostname):
             ret.append(host)
@@ -554,19 +554,18 @@ if __name__ == "__main__":
               type = "string", help = "(optional) list of subdomains,  default = 'names.txt'")
     parser.add_option("-r", "--resolvers", dest = "resolvers", default = os.path.join(base_path, "resolvers.txt"),
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
-    parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
-              type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")
     parser.add_option("-t", "--targets_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
-    parser.add_option("-o", "--output", dest = "output",  default = False,
-              help = "(optional) Output to file")
+    parser.add_option("-o", "--output", dest = "output",  default = False, help = "(optional) Output to file")
     parser.add_option("-a", "-A", action = 'store_true', dest = "ipv4", default = False,
               help = "(optional) Print all IPv4 addresses for sub domains (default = off).")
     parser.add_option("--type", dest = "type", default = False,
               type = "string", help = "(optional) Print all reponses for an arbitrary DNS record type (CNAME, AAAA, TXT, SOA, MX...)")                  
     parser.add_option("-c", "--process_count", dest = "process_count",
               default = 16, type = "int",
-              help = "(optional) Number of lookup theads to run. default = 16")    
+              help = "(optional) Number of lookup theads to run. default = 16")
+    parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
+              type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")                 
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()

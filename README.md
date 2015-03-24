@@ -5,16 +5,14 @@ SubBrute is a community driven project with the goal of creating the fastest, an
 
 Whats new in v1.2.1?
 =====================
-The big news in this version is that SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like nmap!), if you would like the interface to change,  let us know.  In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when the a subdomain cannot be externally resolved. 
-- subbrute is now a DNS spider that recursively crawls enumerated DNS records. This feature boosted *.google.com from 123 to 162 subdomains. (Always enabled)
+The big news in this version is that SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like nmap!), if you would like the interface to change,  let us know.  In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when a subdomain is intended for for use on an internal network.
+- SubBrute is now a DNS spider that recursively crawls enumerated DNS records. This feature boosted *.google.com from 123 to 162 subdomains. (Always enabled)
 - --type enumerate an arbitrary record type (AAAA, CNAME, SOA, TXT, MX...)
 - -s can now read subdomains from result files.
-- SubBrute is now a library: subbrute.run()
-- Restricted subdomain resolution detection
 - New useage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands demonstrate this new functionality:
 ```
 	./subbrute.py google.com -o google.names
-		... 162 subdomains found ...
+		...162 subdomains found...
 
 	./subbrute.py -s google.names google.com --type TXT
 		google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
@@ -26,8 +24,8 @@ The big news in this version is that SubBrute is now a recursive DNS-spider, and
 		groups.google.com,groups.l.google.com
 		...
 ```
-
--Do you want to use SubBrute in your python projects? Consider the new library interface:
+- SubBrute is now a subdomain enumeration library with a python interface: subbrute.run()
+Do you want to use SubBrute in your python projects? Consider the following:
 ```
 	import subbrute
 
