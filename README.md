@@ -3,20 +3,40 @@ subdomain-bruteforcer (SubBrute)
 =====================
 SubBrute is a community driven project with the goal of creating the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
-Whats new in v1.2?
+Whats new in v1.2.1?
 =====================
-In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when the a subdomain cannot be resolved externally. 
-- --aaaa enumerate ipv6 AAAA records
-- --cname enumerate cname records
-- --type enumerate an arbitrary record type (SOA, TXT, MX...)
+The big news in this version is SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like nmap!), if you would like the interface to change,  let us know.  In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when the a subdomain cannot be externally resolved. 
+- subbrute is now a dns spider that recursively crawls DNS records. Fromt his feature *.google.com went from 123 to 162 subdomains.
+- --type enumerate an arbitrary record type (AAAA, CNAME, SOA, TXT, MX...)
+- -s can now read subdomains from results files.
+- SubBrute is now a library  subbrute.run()!
 - Restricted subdomain resolution detection
+-New useage - map out all subdomains, and enumerate other DNS record types:
+./subbrute.py google.com -o google.names
+	... 162 domain found ...
+
+-The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records:
+./subbrute.py -s google.names google.com --type TXT
+	google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
+	adwords.google.com,"v=spf1 redirect=google.com"
+	...
+./subbrute.py -s google.names google.com --type CNAME
+	blog.google.com,www.blogger.com,blogger.l.google.com
+	groups.google.com,groups.l.google.com
+	...
+
+-Do you want to use SubBrute in your python projects? Consider the new library interface:
+	import subbrute
+
+	for d in subbrute.run("google.com"):
+		print d 
 
 Whats new in v1.1?
 =====================
 This version merges pull requests from the community; changes from JordanMilne, KxCode and rc0r is in this release.  In SubBrute 1.1 we fixed bugs, improved  accuracy, and efficiency.  As requested, this project is now GPLv3.
 
 Accuracy and better wildcard detection:
- - A new filter that can pickup Geolocation aware wildcards.
+ - A new filter that can pickup geolocation aware wildcards.
  - Filter misbehaving nameservers
 
 Faster:
