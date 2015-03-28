@@ -423,10 +423,16 @@ def print_target(target, record_type = None, subdomains = "names.txt", resolve_l
                 json_output.write(json_result.strip())
                 json_output.flush()
             else:
-                json_result = json.dumps({"hostname" : hostname, "ipv4" : ",".join(response).strip(",")}) + ","
+                json_result = json.dumps({"hostname" : hostname, "record_type" : ",".join(response).strip(",")}) + ","
                 json_output.write(json_result.strip())
                 json_output.flush()
-
+    #The below formats the JSON to be semantically correct, after the scan has been completed
+    if json_output:
+        json_data = open(options.json, "r").read()
+        #Remove trailing comma, format json and rewrite json file with formatted json
+        formatted_json = "[" + json_data.strip(",") + "]"
+        json_output = open(options.json, "w")
+        json_output.write(formatted_json)
 
 def run(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16):
     subdomains = check_open(subdomains)
@@ -624,9 +630,3 @@ if __name__ == "__main__":
         target = target.strip()
         if target:
             print_target(target, record_type, options.subs, options.resolvers, options.process_count, output, json_output)
-    if json_output:
-        json_data = open(options.json, "r").read()
-        #Remove trailing comma, format json and rewrite json file with formatted json
-        formatted_json = "[" + json_data.strip(",") + "]"
-        json_output = open(options.json, "w")
-        json_output.write(formatted_json)
