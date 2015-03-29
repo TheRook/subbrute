@@ -17,6 +17,7 @@ import random
 import ctypes
 import dns.resolver
 import dns.rdatatype
+import json
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -403,7 +404,7 @@ def extract_subdomains(file_name):
     subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
     return subs_sorted
 
-def print_target(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, output = False):
+def print_target(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, output = False, json_output = False):
     for result in run(target, record_type, subdomains, resolve_list, process_count):
         (hostname, record_type, response) = result
         if not record_type:
@@ -415,6 +416,23 @@ def print_target(target, record_type = None, subdomains = "names.txt", resolve_l
         if output:
             output.write(result + "\n")
             output.flush()
+        if json_output:
+            #If the user requests the A record in the output
+            if not record_type:
+                json_result = json.dumps({"hostname" : hostname}) + ","
+                json_output.write(json_result.strip())
+                json_output.flush()
+            else:
+                json_result = json.dumps({"hostname" : hostname, "record_type" : ",".join(response).strip(",")}) + ","
+                json_output.write(json_result.strip())
+                json_output.flush()
+    #The below formats the JSON to be semantically correct, after the scan has been completed
+    if json_output:
+        json_data = open(options.json, "r").read()
+        #Remove trailing comma, format json and rewrite json file with formatted json
+        formatted_json = "[" + json_data.strip(",") + "]"
+        json_output = open(options.json, "w")
+        json_output.write(formatted_json)
 
 def run(target, record_type = None, subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16):
     subdomains = check_open(subdomains)
@@ -556,7 +574,8 @@ if __name__ == "__main__":
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
     parser.add_option("-t", "--targets_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
-    parser.add_option("-o", "--output", dest = "output",  default = False, help = "(optional) Output to file")
+    parser.add_option("-o", "--output", dest = "output",  default = False, help = "(optional) Output to file (Greppable Format)")
+    parser.add_option("-j", "--json", dest="json", default = False, help="(optional) Output to file (JSON Format)")
     parser.add_option("-a", "-A", action = 'store_true', dest = "ipv4", default = False,
               help = "(optional) Print all IPv4 addresses for sub domains (default = off).")
     parser.add_option("--type", dest = "type", default = False,
@@ -591,7 +610,14 @@ if __name__ == "__main__":
         try:
              output = open(options.output, "w")
         except:
-            error("Faild writing to file:", options.output)
+            error("Failed writing to file:", options.output)
+
+    json_output = False
+    if options.json:
+        try:
+            json_output = open(options.json, "w")
+        except:
+            error("Failed writing to file:", options.json)
 
     record_type = False
     if options.ipv4:
@@ -603,4 +629,4 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
-            print_target(target, record_type, options.subs, options.resolvers, options.process_count, output)
+            print_target(target, record_type, options.subs, options.resolvers, options.process_count, output, json_output)
