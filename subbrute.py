@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
-#SubBrute v1.2
-#A (very) fast subdomain enumeration tool.
+#SubBrute v2.0
+#A (very) fast subdomain spider.
 #
 #Maintained by rook
 #Contributors:
@@ -42,6 +42,8 @@ class Resolver:
     #Google's DNS servers are only used if zero resolvers are specified by the user.
     pos = 0
     rcode = ""
+    wildcards = {}
+    failed_code = False
 
     def __init__(self, nameservers = ['8.8.8.8','8.8.4.4']):
         self.nameservers = nameservers
@@ -122,19 +124,23 @@ class Resolver:
     def get_authoritative(self, hostname):
         ret = []
         while not ret and hostname.count(".") >= 1:
-            nameservers = self.query(hostname, 'NS')
+            try:
+                nameservers = self.query(hostname, 'NS')
+            except IOError:#lookup failed.
+                nameservers = []
             for n in nameservers:
                 ret.append(n[1])
-            #If a nameserver wasn't found try the parent of this sub.
+                #If a nameserver wasn't found try the parent of this sub.
             hostname = hostname[hostname.find(".") + 1:]
         return ret
 
 class verify_nameservers(multiprocessing.Process):
 
-    def __init__(self, target, query_type, resolver_q, resolver_list):
+    def __init__(self, target, query_type, resolver_q, resolver_list, authoratative = False):
         multiprocessing.Process.__init__(self, target = self.run)
         self.daemon = True
         signal_init()
+        self.authoratative = authoratative
 
         self.time_to_die = False
         self.resolver_q = resolver_q
@@ -143,31 +149,8 @@ class verify_nameservers(multiprocessing.Process):
         self.resolver = Resolver()
         #The domain provided by the user.
         self.target = target
-        #1 website in the world,  modify the following line when this status changes.
-        #www.google.cn,  I'm looking at you ;)
-        #self.most_popular_website = "www.google.com"
-        #We shouldn't need the backup_resolver, but we we can use them if need be.
-        #We must have a resolver,  and localhost can work in some environments.
-        #self.target_fail_code = False
+        #Resolvers that will work in a pinch:
         self.backup_resolver = ['8.8.8.8', '8.8.4.4', '127.0.0.1']
-        #try:
-        #    self.resolver.query("%s.%s" % (uuid.uuid4().hex, target),self.backup_resolver[0])
-        #    if not self.resolver.was_successful():
-        #        self.target_fail_code = self.resolver.get_returncode()
-        #except:
-        #    pass
-        #Ideally a nameserver should respond in less than 1 sec.
-        #resolver.timeout = 1
-        #resolver.lifetime = 1
-        #try:
-            #Lets test the letancy of our connection.
-            #Google's DNS server should be an ideal time test.
-        #    resolver.nameservers = ['8.8.8.8']
-        #    resolver.query(self.most_popular_website, self.record_type)
-        #except:
-            #Our connection is slower than a junebug in molasses
-        #    resolver = Resolver()
-        #self.resolver = resolver
 
     def end(self):
         self.time_to_die = True
@@ -184,7 +167,7 @@ class verify_nameservers(multiprocessing.Process):
                 if type(e) == Queue.Full or str(type(e)) == "<class 'queue.Full'>":
                     keep_trying = True
 
-    def verify(self, nameserver_list, authoratative = False):
+    def verify(self, nameserver_list):
         added_resolver = False
         for server in nameserver_list:
             if self.time_to_die:
@@ -193,11 +176,8 @@ class verify_nameservers(multiprocessing.Process):
             server = server.strip()
             if server:
                 try:
-                    #test_result = self.resolver.query(self.most_popular_website, "A")
-                    #should throw an exception before this line.
-                    #if test_result:
                     #Only add the nameserver to the queue if we can detect wildcards.
-                    verified_server = self.find_wildcards(self.target, server, authoratative)
+                    verified_server = self.find_wildcards(self.target, server)
                     if verified_server:# and self.find_wildcards(".com")
                         #wildcards have been added to the set, it is now safe to be added to the queue.
                         #blocking queue,  this process will halt on put() when the queue is full:
@@ -226,25 +206,25 @@ class verify_nameservers(multiprocessing.Process):
 
     #Only add the nameserver to the queue if we can detect wildcards. 
     #Returns False on error.
-    def find_wildcards(self, host, server, authoratative = False):
+    def find_wildcards(self, host, server):
         wildcards = {}
         #We want sovle the following three problems:
         #1)The target might have a wildcard DNS record.
         #2)The target maybe using geolocaiton-aware DNS.
-        ###3)The DNS server we are testing may respond to non-exsistant 'A' records with advertizements.
-        #I have seen a CloudFlare Enterprise customer with the first two conditions.
+        #I have seen a CloudFlare Enterprise customer with these two conditions.
         try:
             #This is case #3,  these spam nameservers seem to be more trouble then they are worth.
             blanktest = self.resolver.query(self.target, self.query_type)
             if self.query_type == "ANY":
                 #If the type was ANY we should have gotten some records
-                if not len(blanktest):
+                if not len(blanktest) and not self.authoratative:
                     return False
             elif not self.resolver.was_successful():
                 trace("Cannot perform ", self.query_type, " request:", host)
                 return False
         except Exception as e:
-            return False
+            if not self.authoratative:
+                return False
         test_counter = 8
         looking_for_wildcards = True
         while looking_for_wildcards and test_counter >= 0:
@@ -266,15 +246,14 @@ class verify_nameservers(multiprocessing.Process):
                                 wildcards[data] = None
                                 #found atleast one wildcard, look for more.
                                 looking_for_wildcards = True
-                #else:
-                    #If a trusted resvoler is getting a failcode, then check that we are getting the same code
-                    #if self.target_fail_code:
-                    #    return self.target_fail_code == self.resolver.get_returncode()
-                    #The response was empty, this resovler is telling the truth about an empty lookup.
             except Exception as e:
                 #This resolver maybe flakey, we don't want it for our tests.
-                trace("wildcard exception:", server, type(e))
-                return False
+                if not self.authoratative:
+                    trace("wildcard exception:", server, type(e))
+                    return False
+                else:
+                    #The authoratative server isn't going to give us wildcards
+                    looking_for_wildcards = False
         #If we hit the end of our depth counter and,
         #there are still wildcards, then reject this nameserver because it smells bad.
         if test_counter >= 0:
@@ -331,18 +310,29 @@ class lookup(multiprocessing.Process):
                 if not record_type or record_type == "ANY":
                     resp = self.resolver.query(host)
                     #A DNS record may exist without data. Usually this is a parent domain.
-                    if self.resolver.record_exists() and self.resolver.was_successful() and not resp:
+                    if self.resolver.record_exists() and not resp:
                         resp = [(self.resolver.get_returncode(), "")]
                     return resp
                 if record_type == "CNAME":
+                    added_cname = False
                     #A max 20 lookups
                     for x in range(20):
-                        resp = self.resolver.query(host, record_type)
-                        if resp and resp[0]:
-                            host = str(resp[0]).rstrip(".")
-                            cname_record.append(host)
-                        else:
-                            return cname_record
+                        resp = self.resolver.query(host, record_type, total_rechecks)
+                        for r in resp:
+                            record_type, record = r
+                            if record_type == "CNAME":
+                                host = str(record).rstrip(".")
+                                cname_record.append(host)
+                                added_cname = True
+                                break
+                        if not added_cname:
+                            break
+                    if cname_record:
+                        ret = [(record_type, cname_record)]
+                    else:
+                        ret = False
+                        #No response?  then return what we have.
+                    return ret
                 else:
                     #All other records:
                     return self.resolver.query(host, record_type)
@@ -354,13 +344,13 @@ class lookup(multiprocessing.Process):
                 elif retries >= 3:
                     #This thread has tried and given up
                     trace('Exception:', type(e), " - ", e.message)
-                    self.in_q.put((host, record_type, total_rechecks + 1))
+                    self.in_q_priority.put((host, record_type, total_rechecks + 1))
                     return False
                 else:
                     #Retry the same request on the same thread.
-                    retries += 1
-                    #Give the DNS server a chance to cool off,  there maybe a rate-limit.
                     time.sleep(retries)
+                    #Give the DNS server a chance to cool off,  there maybe a rate-limit.
+                    retries += 1
 
     def get_work(self):
         work = False
@@ -373,23 +363,12 @@ class lookup(multiprocessing.Process):
         if not work:
             work = self.in_q.get()
         #Is this the end all work that needs to be done?
-        #Check if we have hit the end marker
-        while not work:
-            #Look for a re-queued lookup
-            try:
-                work = self.in_q.get_nowait()
-                #if we took the end marker of the queue we need to put it back
-                if work:
-                    self.in_q.put(False)
-            except Queue.Empty:
-                trace('End of work queue')
-                #There isn't an item behind the end marker
-                work = False
-                #Perpetuate the end marker for all threads to see
-                self.in_q.put(False)
-                #Notify the parent that we have died of natural causes
-                self.out_q.put(False)
-                break
+        if not work:
+            trace('End of work queue')
+            #Perpetuate the end marker for all threads to see
+            self.in_q.put(False)
+            #Notify the parent that we have died of natural causes
+            self.out_q.put(False)
         return work
 
     def run(self):
@@ -413,6 +392,7 @@ class lookup(multiprocessing.Process):
                     trace(response)
                     for a in response:
                         record_type, data = a
+                        data = str(data)
                         if data in self.resolver.wildcards:
                             trace("resovled wildcard:", hostname)
                             reject= True
@@ -431,7 +411,7 @@ class lookup(multiprocessing.Process):
 #The dot at the end of a domain signifies the root,
 #and all TLDs are subs of the root.
 host_match = re.compile(r"((?<=[^a-zA-Z0-9_-])[a-zA-Z0-9_-]+\.(?:[a-zA-Z0-9_-]+\.?)+(?=[^a-zA-Z0-9_-]))")
-def extract_hosts(data, hostname):
+def extract_hosts(data, hostname = ""):
     #made a global to avoid re-compilation
     global host_match
     ret = []
@@ -443,45 +423,25 @@ def extract_hosts(data, hostname):
             ret.append(host)
     return ret
 
-#Return a list of unique sub domains,  sorted by frequency.
-#Only match domains that have 3 or more sections subdomain.domain.tld
-domain_match = re.compile("([a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*)+")
-def extract_subdomains(file_name):
-    #Avoid re-compilation
-    global domain_match
-    subs = {}
-    sub_file = open(file_name).read()
-    f_all = re.findall(domain_match, sub_file)
-    del sub_file
-    for i in f_all:
-        if i.find(".") >= 0:
-            p = i.split(".")[0:-1]
-            #gobble everything that might be a TLD
-            while p and len(p[-1]) <= 3:
-                p = p[0:-1]
-            #remove the domain name
-            p = p[0:-1]
-            #do we have a subdomain.domain left?
-            if len(p) >= 1:
-                trace(str(p), " : ", i)
-                for q in p:
-                    if q :
-                        #domain names can only be lower case.
-                        q = q.lower()
-                        if q in subs:
-                            subs[q] += 1
-                        else:
-                            subs[q] = 1
-    #Free some memory before the sort...
-    del f_all
-    #Sort by freq in desc order
-    subs_sorted = sorted(subs.keys(), key = lambda x: subs[x], reverse = True)
-    return subs_sorted
+#Return a unique list of subdomains to a given host
+def extract_directory(dir_name, hostname = ""):
+    ret = []
+    dupe = {}
+    for root, subdirs, files in os.walk(dir_name):
+        for filename in files:
+            full_path = os.path.join(root, filename)
+            raw = open(full_path).read()
+            for h in extract_hosts(raw, hostname):
+                if h not in dupe:
+                    dupe[h] = None
+                    ret.append(h)
+    return ret
 
-def print_target(target, request_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, recursive = False, print_data = False, output = False, json_output = False):
+def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False):
+    json_struct = {}
     if not print_data:
         dupe_filter = {}
-    for result in run(target, request_type, subdomains, resolve_list, process_count, recursive):
+    for result in run(target, query_type, subdomains, resolve_list, process_count):
         (hostname, record_type, record) = result
         if not print_data:
             #We just care about new names, filter multiple records for the same name.
@@ -491,43 +451,53 @@ def print_target(target, request_type = "ANY", subdomains = "names.txt", resolve
             else:
                 result = False
         else:
-            #Print everything we have found.
-            result = "%s,%s,%s" % (hostname, record_type, record)
+            if query_type == 'ANY':
+                #Print everything we have found.
+                result = "%s,%s,%s" % (hostname, record_type, record)
+            elif query_type == record_type and record:
+                #CNAME produces array records.
+                if type(record) is type([]):
+                    record = ",".join(record)
+                result = "%s,%s,%s" % (hostname, record_type, record)
+            else:
+                result = False
         if result:
             print(result)
             sys.stdout.flush()
+            if hostname in json_struct:
+                if record_type in json_struct:
+                    json_struct[hostname][record_type].append(record)
+                else:
+                    json_struct[hostname][record_type] = []
+                    json_struct[hostname][record_type].append(record)
+            else:
+                json_struct[hostname] = {}
+                json_struct[hostname][record_type] = []
+                json_struct[hostname][record_type].append(record)
             if output:
                 output.write(result + "\n")
                 output.flush()
-            if json_output:
-                #If the user requests the A record in the output
-                if not record_type:
-                    json_result = json.dumps({"hostname" : hostname}) + ","
-                    json_output.write(json_result.strip())
-                    json_output.flush()
-                else:
-                    json_result = json.dumps({"hostname" : hostname, "record_type" : record_type, "record:": record}) + ","
-                    json_output.write(json_result.strip())
-                    json_output.flush()
     #The below formats the JSON to be semantically correct, after the scan has been completed
     if json_output:
-        json_data = open(options.json, "r").read()
-        #Remove trailing comma, format json and rewrite json file with formatted json
-        formatted_json = "[" + json_data.strip(",") + "]"
         json_output = open(options.json, "w")
-        json_output.write(formatted_json)
+        json_output.write(json.dumps(json_struct))
 
-def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16, recursive_bruteforce = False):
-    subdomains = check_open(subdomains)
+def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16):
+    if os.path.isdir(subdomains):
+        subdomains = extract_directory(subdomains, target)
+    else:
+        subdomains = check_open(subdomains)
+
+    is_authoratative = False
     if resolve_list:
         resolve_list = check_open(resolve_list)
         if (len(resolve_list) / 16) < process_count:
             sys.stderr.write('Warning: Fewer than 16 resovlers per process, consider adding more nameservers to resolvers.txt.\n')
-            scarce_resolvers = True
     else:
         #By default, use the authoratative name servers for the target
         resolve = Resolver()
         resolve_list = resolve.get_authoritative(target)
+        is_authoratative = True
 
     spider_blacklist = {}
     in_q = multiprocessing.Queue()
@@ -537,13 +507,12 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     resolve_q = multiprocessing.Queue(maxsize = 2)
 
     #Make a source of fast nameservers avaiable for other processes.
-    verify_nameservers_proc = verify_nameservers(target, query_type, resolve_q, resolve_list)
+    verify_nameservers_proc = verify_nameservers(target, query_type, resolve_q, resolve_list, is_authoratative)
     verify_nameservers_proc.start()
-    #The empty string 
+    #test the empty string
     in_q.put((target, query_type, 0))
     spider_blacklist[target] = None
     #A list of subdomains is the input
-    clean_subdomains = []
     for s in subdomains:
         #Domains cannot contain whitespace,  and are case-insensitive.
         s = str(s).strip().lower()
@@ -560,7 +529,6 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             if hostname not in spider_blacklist:
                 spider_blacklist[hostname] = None
                 in_q.put((hostname, query_type, 0))
-                clean_subdomains.append(hostname.replace(target,""))
     #Free some memory before the big show.
     del subdomains
     #Terminate the queue
@@ -586,21 +554,24 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             if not result:
                 threads_remaining -= 1
             else:
+                #did a record contain a new host?
+                if query_type != "CNAME":
+                    hosts = extract_hosts(str(result[2]), target)
+                    for h in hosts:
+                        if h not in spider_blacklist:
+                            spider_blacklist[h] = None
+                            #spider newly found hostname
+                            in_q_priority.put((h, query_type, 0))
                 #run() is a generator, and yields results from the work queue
-                hosts = extract_hosts(str(result[2]), target)
-                for h in hosts:
-                    if h not in spider_blacklist:
-                        spider_blacklist[h] = None
-                        in_q_priority.put((h, query_type, 0))
-                if recursive_bruteforce:
-                    hostname = result[0].strip(".")
-                    #Look for subdomains of the newly-found host.
-                    for cs in clean_subdomains:
-                        recursive_target = cs + hostname
-                        if recursive_target not in spider_blacklist:
-                            spider_blacklist[recursive_target] = None
-                            in_q.put((recursive_target, query_type, 0))
                 yield result
+                #if recursive_bruteforce:
+                #    hostname = result[0].strip(".")
+                    #Look for subdomains of the newly-found host.
+                #    for cs in clean_subdomains:
+                #        recursive_target = cs + hostname
+                #        if recursive_target not in spider_blacklist:
+                #            spider_blacklist[recursive_target] = None
+                #            in_q.put((recursive_target, query_type, 0))
         except Exception as e:
             #The cx_freeze version uses queue.Empty instead of Queue.Empty :(
             if type(e) == Queue.Empty or str(type(e)) == "<class 'queue.Empty'>":
@@ -694,13 +665,11 @@ if __name__ == "__main__":
         base_path = os.path.dirname(os.path.realpath(__file__))
     parser = optparse.OptionParser("\n%prog [options] target_domain\n%prog -p target_domain")
     parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "names.txt"),
-              type = "string", help = "(optional) list of subdomains,  default = 'names.txt'")
+              type = "string", help = "(optional) A list of subdomains, accepts a file, or a directory of files. default = 'names.txt'")
     parser.add_option("-r", "--resolvers", dest = "resolvers", default = False,
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
     parser.add_option("-t", "--targets_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
-    parser.add_option("-R", "--recursive", action = 'store_true', dest = "recursive_bruteforce", default = False,
-              help = "(optional) Run %prog recursivly on found subdomians (default = off).")
     parser.add_option("-p", "-P", action = 'store_true', dest = "print_data", default = False,
               help = "(optional) Print data from found DNS records (default = off).")
     parser.add_option("-o", "--output", dest = "output",  default = False, help = "(optional) Output to file (Greppable Format)")
@@ -710,22 +679,14 @@ if __name__ == "__main__":
     parser.add_option("-c", "--process_count", dest = "process_count",
               default = 16, type = "int",
               help = "(optional) Number of lookup theads to run. default = 16")
-    parser.add_option("-f", "--filter_subs", dest = "filter", default = "",
-              type = "string", help = "(optional) A file containing unorganized domain names which will be filtered into a list of subdomains sorted by frequency.  This was used to build names.txt.")                 
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
 
     verbose = options.verbose
 
-    if len(args) < 1 and options.filter == "" and options.targets == "":
+    if len(args) < 1 and options.targets == "":
         parser.error("You must provide a target. Use -h for help.")
-
-    if options.filter != "":
-        #cleanup this file and print it out
-        for d in extract_subdomains(options.filter):
-            print(d)
-        sys.exit()
 
     if options.targets != "":
         targets = check_open(options.targets)
@@ -754,4 +715,4 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
-            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.recursive_bruteforce, options.print_data, output, json_output)
+            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
