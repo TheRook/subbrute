@@ -5,7 +5,7 @@ SubBrute is a community driven project with the goal of creating the fastest, an
 
 Whats new in v2.0?
 =====================
-A lot of exciting updates...
+A lot of exciting updates... except for the readme file,  which still needs to be updated.
 
 Whats new in v1.2.1?
 =====================
