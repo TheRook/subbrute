@@ -3,6 +3,10 @@ subdomain-bruteforcer (SubBrute)
 =====================
 SubBrute is a community driven project with the goal of creating the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
+Whats new in v2.0?
+=====================
+A lot of exciting updates...
+
 Whats new in v1.2.1?
 =====================
 The big news in this version is that SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like nmap!), if you would like the interface to change,  let us know.  In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when a subdomain is intended for for use on an internal network.
