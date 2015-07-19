@@ -511,7 +511,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
         if (len(resolve_list) / 16) < process_count:
             sys.stderr.write('Warning: Fewer than 16 resovlers per process, consider adding more nameservers to resolvers.txt.\n')
     else:
-        #By default, use the authoratative name servers for the target
+        #By default, use the authoratative nameservers for the target
         resolve = Resolver()
         resolve_list = resolve.get_authoritative(target)
         is_authoratative = True

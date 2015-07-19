@@ -31431,7 +31431,6 @@ vpn02
 047
 048
 049
-05/04/24
 050
 051
 052
@@ -32976,7 +32975,6 @@ agelli
 agen
 agena
 ageng
-ageng+
 agenor
 agenore
 agent
@@ -33039,11 +33037,6 @@ agronomy
 agrouter
 agry
 ags
-ags+1
-ags+2
-ags+3
-ags+4
-ags+5
 agsags
 agsm
 agsph
@@ -37885,7 +37878,6 @@ bkr
 bkr51
 bkuperwasser
 blab
-black ultrix loghost
 black-dallas
 blackadder
 blackbart
@@ -43591,7 +43583,6 @@ comiso-am1
 comiso-piv
 comix
 comlab
-comlab nnhost
 comm
 comma
 commac
@@ -43840,7 +43831,6 @@ convergencegroup
 converse
 convert
 convex
-convex mailrelay dumphost
 convey
 conway
 conwell
@@ -52380,15 +52370,6 @@ fmmibi
 fmn
 fmnote
 fmorris
-fmp#03
-fmp#051
-fmp#1
-fmp#182
-fmp#216
-fmp#371
-fmp#412
-fmp#48
-fmp#499
 fmpmis
 fmr
 fms
@@ -67833,12 +67814,6 @@ lystig
 lytle
 lzp
 lzs
-m-net
-m.
-m.plb1
-m.plb2
-m.slb1
-m.slb2
 m0
 m02
 m1
@@ -73854,8 +73829,6 @@ ncrt
 ncrtimes
 ncs
 ncs-dre
-ncs/150
-ncs/at
 ncsa
 ncsa2
 ncsaa
@@ -77095,8 +77068,6 @@ ouareau
 oucom
 oucomh
 oucs
-oucs vaxz
-oucs white ws
 oucsace
 oucsnet
 oud
@@ -77205,7 +77176,6 @@ oxds05
 oxds06
 oxds07
 oxds08
-oxdsa dns1
 oxenga
 oxengb
 oxengc
@@ -77221,7 +77191,6 @@ oxglux
 oxgluy
 oxgluz
 oxide
-oxmail dns0 oxmail
 oxmicro
 oxmv1
 oxmyx
@@ -93050,7 +93019,6 @@ test6
 test7
 test8
 test9
-test]
 testa
 testannex
 testarosa
@@ -96928,7 +96896,6 @@ vav
 vavoom
 vavtrudne
 vax
-vax vaxd cluster
 vax-x25
 vax01
 vax02
@@ -99043,7 +99010,6 @@ wims
 wims-myrtle-beach
 wims-tyn1
 wimsey
-win/tcp
 win2k3-1
 win2k3-2
 winch
