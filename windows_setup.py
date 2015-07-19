@@ -11,7 +11,7 @@ executables = [
 ]
 
 setup(name='SubBrute',
-      version = '1.1',
+      version = '2.0',
       description = 'A fast and accurate subdomain enumeration tool.',
       options = dict(build_exe = buildOptions),
       executables = executables)
