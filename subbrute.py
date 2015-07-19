@@ -66,13 +66,12 @@ class Resolver:
                 response = dnslib.DNSRecord.parse(response_q)
             else:
                 raise IOError("Empty Response")
-        except Exception as e:#struct.error is some malformed response.
-            if type(e) in [socket.timeout, socket.error, dnslib.DNSError, struct.error]:
-                #IOErrors are all conditions that require a retry.
-                raise IOError(str(e))
-            else:
-                #We may need to add a handler for this unknown exception
-                raise e
+        except Exception as e:
+            #Detect perm error vs temp error
+            #struct.error is some malformed response.
+            #if type(e) in [socket.timeout, socket.error, dnslib.DNSError, struct.error, UnicodeError]:
+            #IOErrors are all conditions that require a retry.
+            raise IOError(str(e))
         if response:
             self.rcode = dnslib.RCODE[response.header.rcode]
             if self.rcode not in ['NOERROR', 'NXDOMAIN','REFUSED','SERVFAIL']:
@@ -343,7 +342,7 @@ class lookup(multiprocessing.Process):
                     return [(self.resolver.get_returncode(), "")]
                 elif retries >= 3:
                     #This thread has tried and given up
-                    trace('Exception:', type(e), " - ", e.message)
+                    trace('Exception:', type(e), " - ", e)
                     self.in_q_priority.put((host, record_type, total_rechecks + 1))
                     return False
                 else:
@@ -406,6 +405,24 @@ class lookup(multiprocessing.Process):
                             #This request is filled, send the results back
                             result = (hostname, record_type, data)
                             self.out_q.put(result)
+
+#The multiprocessing queue will fill up, so a new process is required.
+class loader(multiprocessing.Process):
+    def __init__(self, in_q, subdomains, query_type):
+        multiprocessing.Process.__init__(self, target = self.run)
+        signal_init()
+        self.in_q = in_q
+        self.subdomains = subdomains
+        self.query_type = query_type
+
+    #Blocks on in_q for large datasets
+    def run(self):
+        #A list of subdomains is the input
+        for s in self.subdomains:
+            #Domains cannot contain whitespace,  and are case-insensitive.
+            self.in_q.put((s, self.query_type, 0))
+        #Terminate the queue
+        self.in_q.put(False)
 
 #Extract relevant hosts
 #The dot at the end of a domain signifies the root,
@@ -512,15 +529,16 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     #test the empty string
     in_q.put((target, query_type, 0))
     spider_blacklist[target] = None
-    #A list of subdomains is the input
+    clean_subs = []
     for s in subdomains:
-        #Domains cannot contain whitespace,  and are case-insensitive.
         s = str(s).strip().lower()
+        find_csv = s.find(",")
+        if find_csv > 1:
+            #SubBrute should be forgiving, a comma will never be in a url
+            #but the user might try an use a CSV file as input.
+            s = s[0:find_csv]
+        s = s.rstrip(".")
         if s:
-            if s.find(","):
-                #SubBrute should be forgiving, a comma will never be in a url
-                #but the user might try an use a CSV file as input.
-                s=s.split(",")[0]
             if not s.endswith(target):
                 hostname = "%s.%s" % (s, target)
             else:
@@ -528,17 +546,21 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                 hostname = s
             if hostname not in spider_blacklist:
                 spider_blacklist[hostname] = None
-                in_q.put((hostname, query_type, 0))
+                clean_subs.append(hostname)
+
     #Free some memory before the big show.
     del subdomains
-    #Terminate the queue
-    in_q.put(False)
+
+    #load in the subdomains,  can be quite large
+    load = loader(in_q, clean_subs, query_type)
+    load.start()
+
     #We may not have the resolvers needed to backup our thread count.
     list_len = len(resolve_list)
     if list_len < process_count:
         # // is floor division.  always return a full number.
-        # We need a minimum of 4 resolvers per thread to hold by the 1 query per 5 sec limit.
-        process_count = list_len // 4
+        # We need a minimum of 2 resolvers per thread to hold by the 1 query per 5 sec limit.
+        process_count = list_len // 2
         if process_count <= 0:
             process_count = 1
         trace("Too few resolvers:", list_len, " process_count reduced to:", process_count)
