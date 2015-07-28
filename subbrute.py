@@ -48,15 +48,9 @@ class Resolver:
     def __init__(self, nameservers = ['8.8.8.8','8.8.4.4']):
         self.nameservers = nameservers
 
-    def query(self, hostname, query_type = 'ANY', name_server = False, use_tcp = None):
+    def query(self, hostname, query_type = 'ANY', name_server = False, use_tcp = True):
         ret = []
         response = None
-        if use_tcp is None:
-            #Assuming meta-queries are the only queries that require TCP
-            if query_type in ['ANY', 'AXFR']:
-                use_tcp = True
-            else:
-                use_tcp = False
         if name_server == False:
             name_server = self.get_ns()
         query = dnslib.DNSRecord.question(hostname, query_type.upper().strip())
@@ -69,6 +63,7 @@ class Resolver:
         except Exception as e:
             #Detect perm error vs temp error
             #struct.error is some malformed response.
+            #UnicodeError is a malformed response that only seems to happen on python 3.x
             #if type(e) in [socket.timeout, socket.error, dnslib.DNSError, struct.error, UnicodeError]:
             #IOErrors are all conditions that require a retry.
             raise IOError(str(e))
@@ -576,8 +571,9 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             if not result:
                 threads_remaining -= 1
             else:
-                #did a record contain a new host?
-                if query_type != "CNAME":
+                #Could this DNS record contain a hostname?
+                if query_type != "CNAME" and result[0] not in ["AAAA","A"]:
+                    #did a record contain a new host?
                     hosts = extract_hosts(str(result[2]), target)
                     for h in hosts:
                         if h not in spider_blacklist:
