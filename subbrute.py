@@ -44,6 +44,7 @@ class Resolver:
     rcode = ""
     wildcards = {}
     failed_code = False
+    last_resolver = ""
 
     def __init__(self, nameservers = ['8.8.8.8','8.8.4.4']):
         self.nameservers = nameservers
@@ -53,6 +54,10 @@ class Resolver:
         response = None
         if name_server == False:
             name_server = self.get_ns()
+        else:
+            self.wildcards = {}
+            self.failed_code = None
+        self.last_resolver = name_server
         query = dnslib.DNSRecord.question(hostname, query_type.upper().strip())
         try:
             response_q = query.send(name_server, 53, use_tcp)
@@ -78,8 +83,10 @@ class Resolver:
                 try:
                     rtype = str(dnslib.QTYPE[r.rtype])
                 except:#Server sent an unknown type:
-                    rtype = r.rtype
-                ret.append((rtype, str(r.rdata)))
+                    rtype = str(r.rtype)
+                #Fully qualified domains may cause problems for other tools that use subbrute's output.
+                rhost = str(r.rname).rstrip(".")
+                ret.append((rhost, rtype, str(r.rdata)))
             if not len(ret) and self.rcode not in ["NXDOMAIN", "NOERROR"]:
                 raise IOError("DNS Error - " + self.rcode + " - for:" + hostname)
         return ret
@@ -123,10 +130,12 @@ class Resolver:
             except IOError:#lookup failed.
                 nameservers = []
             for n in nameservers:
-                ret.append(n[1])
+                ret.append(n[2])
                 #If a nameserver wasn't found try the parent of this sub.
             hostname = hostname[hostname.find(".") + 1:]
         return ret
+    def get_last_resolver(self):
+        return self.last_resolver
 
 class verify_nameservers(multiprocessing.Process):
 
@@ -232,7 +241,7 @@ class verify_nameservers(multiprocessing.Process):
                 #This 'A' record may contain a list of wildcards.
                 if len(wildtest):
                     for w in wildtest:
-                        record_type, data = w
+                        return_name, record_type, data = w
                         if record_type in ["CNAME", "A", "AAAA", "MX"]:
                             data = str(data)
                             if data not in wildcards:
@@ -305,24 +314,25 @@ class lookup(multiprocessing.Process):
                     resp = self.resolver.query(host)
                     #A DNS record may exist without data. Usually this is a parent domain.
                     if self.resolver.record_exists() and not resp:
-                        resp = [(self.resolver.get_returncode(), "")]
+                        resp = [(host, self.resolver.get_returncode(), "")]
                     return resp
                 if record_type == "CNAME":
                     added_cname = False
                     #A max 20 lookups
+                    cname_host = host
                     for x in range(20):
-                        resp = self.resolver.query(host, record_type, total_rechecks)
+                        resp = self.resolver.query(cname_host, record_type, total_rechecks)
                         for r in resp:
-                            record_type, record = r
+                            return_name, record_type, record = r
                             if record_type == "CNAME":
-                                host = str(record).rstrip(".")
-                                cname_record.append(host)
+                                cname_host = str(record).rstrip(".")
+                                cname_record.append(cname_host)
                                 added_cname = True
                                 break
                         if not added_cname:
                             break
                     if cname_record:
-                        ret = [(record_type, cname_record)]
+                        ret = [(host, record_type, cname_record)]
                     else:
                         ret = False
                         #No response?  then return what we have.
@@ -334,9 +344,9 @@ class lookup(multiprocessing.Process):
                 if total_rechecks >= 3:
                     #Multiple threads have tried and given up
                     trace('Lookup failure due to 3 exception limit.')
-                    return [(self.resolver.get_returncode(), "")]
+                    return [(host, self.resolver.get_returncode(), "")]
                 elif retries >= 3:
-                    #This thread has tried and given up
+                    #This thread has tried and given    up
                     trace('Exception:', type(e), " - ", e)
                     self.in_q_priority.put((host, record_type, total_rechecks + 1))
                     return False
@@ -384,22 +394,20 @@ class lookup(multiprocessing.Process):
                 found = []
                 if response:
                     trace(response)
-                    for a in response:
-                        record_type, data = a
+                    for record in response:
+                        return_name, record_type, data = record
                         data = str(data)
                         if data in self.resolver.wildcards:
                             trace("resovled wildcard:", hostname)
                             reject= True
                             #reject this domain.
-                            break;
+                            break
                         else:
-                            found.append(a)
+                            found.append(record)
                     if not reject:
                         for f in found:
-                            record_type, data = f
                             #This request is filled, send the results back
-                            result = (hostname, record_type, data)
-                            self.out_q.put(result)
+                            self.out_q.put(f)
 
 #The multiprocessing queue will fill up, so a new process is required.
 class loader(multiprocessing.Process):
@@ -410,7 +418,7 @@ class loader(multiprocessing.Process):
         self.subdomains = subdomains
         self.query_type = query_type
 
-    #Blocks on in_q for large datasets
+    #Blocks on in_q for large datasets, even though the queue size is 'unlimited'
     def run(self):
         #A list of subdomains is the input
         for s in self.subdomains:
@@ -504,21 +512,44 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     if resolve_list:
         resolve_list = check_open(resolve_list)
         if (len(resolve_list) / 16) < process_count:
-            sys.stderr.write('Warning: Fewer than 16 resovlers per process, consider adding more nameservers to resolvers.txt.\n')
+            sys.stderr.write('Warning: Fewer than 16 resolvers per process, consider adding more nameservers to resolvers.txt.\n')
     else:
         #By default, use the authoratative nameservers for the target
         resolve = Resolver()
         resolve_list = resolve.get_authoritative(target)
         is_authoratative = True
+        if not resolve_list:
+            sys.stderr.write("Unable to find authoritative resolvers for:", target)
+            return
 
     spider_blacklist = {}
     in_q = multiprocessing.Queue()
     in_q_priority = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
-    #have a buffer of at most two new nameservers that lookup processes can draw from.
+    #Have a buffer of at most two new nameservers that lookup processes can draw from.
     resolve_q = multiprocessing.Queue(maxsize = 2)
 
-    #Make a source of fast nameservers avaiable for other processes.
+    #If we are resolving against the, check AXFR,  we might get lucky :)
+    if is_authoratative:
+        ar = Resolver(resolve_list)
+        #Check every authoratative NS for AXFR support
+        #These are distinct servers, one could be misconfigured
+        for i in range(len(resolve_list)):
+            res = []
+            try:
+                res = ar.query(target, 'AXFR')
+            except:
+                pass
+            if res:
+                trace("AXFR Successful for:", ar.get_last_resolver())
+                for r in res:
+                    return_name, record_type, data = r
+                    #Prevent spider processes form re-enumerating these hosts.
+                    spider_blacklist[return_name] = None
+                    yield r
+                #Even if the AXFR was a success, keep looking. Don't trust anyone.
+
+    #Make a source of fast nameservers avaiable for othe        r processes.
     verify_nameservers_proc = verify_nameservers(target, query_type, resolve_q, resolve_list, is_authoratative)
     verify_nameservers_proc.start()
     #test the empty string
@@ -534,6 +565,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             s = s[0:find_csv]
         s = s.rstrip(".")
         if s:
+            #A subbrute.py -o output.csv maybe our input.
             if not s.endswith(target):
                 hostname = "%s.%s" % (s, target)
             else:
@@ -543,10 +575,10 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                 spider_blacklist[hostname] = None
                 clean_subs.append(hostname)
 
-    #Free some memory before the big show.
+    #Free up some memory before the big show.
     del subdomains
 
-    #load in the subdomains,  can be quite large
+    #load in the subdomains, can be quite large
     load = loader(in_q, clean_subs, query_type)
     load.start()
 
@@ -572,6 +604,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                 threads_remaining -= 1
             else:
                 #Could this DNS record contain a hostname?
+                #If the query_type is CNAME, then lookup() takes care of that chain.
                 if query_type != "CNAME" and result[0] not in ["AAAA","A"]:
                     #did a record contain a new host?
                     hosts = extract_hosts(str(result[2]), target)

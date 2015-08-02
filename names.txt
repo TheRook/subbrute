@@ -323,6 +323,7 @@ personal
 zamiatarki
 beta
 pref
+prepaid
 kino
 sms
 f3
