@@ -20,6 +20,7 @@ import ctypes
 import json
 import string
 import itertools
+import datetime
 import socket
 import struct
 
@@ -40,7 +41,7 @@ if sys.platform.startswith('win'):
     multiprocessing.Process = threading.Thread
 
 #A resolver wrapper around dnslib.py
-class Resolver:
+class resolver:
     #Google's DNS servers are only used if zero resolvers are specified by the user.
     pos = 0
     rcode = ""
@@ -154,7 +155,7 @@ class verify_nameservers(multiprocessing.Process):
         self.resolver_q = resolver_q
         self.query_type = query_type
         self.resolver_list = resolver_list
-        self.resolver = Resolver()
+        self.resolver = resolver()
         #The domain provided by the user.
         self.target = target
         #Resolvers that will work in a pinch:
@@ -304,7 +305,9 @@ class lookup(multiprocessing.Process):
         self.resolver_q = resolver_q        
         self.domain = domain
         #Passing an empty array forces the resolver object to use our nameservers
-        self.resolver = Resolver([])
+        self.resolver = resolver([])
+        self.start_time = 0
+        self.current_work = None
 
     def get_ns(self):
         ret = False
@@ -370,9 +373,10 @@ class lookup(multiprocessing.Process):
                     #All other records:
                     return self.resolver.query(host, record_type)
             except (IOError, TypeError) as e:
-                if total_rechecks >= 3:
+                if total_rechecks >= 3 or \
+                        (retries >= 2 and self.resolver.get_returncode() == "NOERROR"):
                     #Multiple threads have tried and given up
-                    trace('Lookup failure due to 3 exception limit.')
+                    trace('Giving up:', host, self.resolver.get_returncode())
                     return [(host, self.resolver.get_returncode(), "")]
                 elif retries >= 3:
                     #This thread has tried and given    up
@@ -413,6 +417,9 @@ class lookup(multiprocessing.Process):
             work = self.get_work()
             #if the code above found work
             if work:
+                #Keep track of what we are working on, so the reeper can create a new worker.
+                self.current_work = work
+                self.start_time = datetime.datetime.now()
                 #keep track of how many times this lookup has timedout.
                 (hostname, query_type, timeout_retries) = work
                 response = self.check(hostname, query_type, timeout_retries)
@@ -460,17 +467,38 @@ class loader(multiprocessing.Process):
             if not permute_filter.match(s):
                 #Domains cannot contain whitespace,  and are case-insensitive.
                 self.in_q.put((s, self.query_type, 0))
-            else:
-                pass
         #Terminate the queue
         self.in_q.put(False)
 
     def permute(self):
-        full_range = string.ascii_lowercase + string.digits
-        for i in itertools.permutations(full_range, self.permute_len):
-            if i :
-                self.in_q.put((i, self.query_type, 0))
+        full_range = string.ascii_lowercase + string.digits + "_-"
+        for l in range(1, self.permute_len + 1):
+            for i in itertools.permutations(full_range, l):
+                if i :
+                    self.in_q.put((i, self.query_type, 0))
 
+class reeper(multiprocessing.Process):
+    def __init__(self, worker_list):
+        multiprocessing.Process.__init__(self, target = self.run)
+        signal_init()
+        self.worker_list = worker_list
+
+    def run(self):
+        while True:
+            time.sleep(60)
+            timeout = datetime.datetime.now() - datetime.timedelta(minutes = 2)
+            i = 0
+            for w in self.worker_list:
+                #Has this process been working for longer than 2 minutes?
+                if w.start_time and w.start_time < timeout:
+                    trace("Killing off another lazy worker:", w.current_work)
+                    new_worker = lookup(w.in_q, w.in_q_priority, w.out_q, w.resolve_q, w.target)
+                    new_worker.start()
+                    self.worker_list[i] = new_worker
+                    (hostname, query_type, timeout_retries) = w.current_work
+                    w.in_q_priority.put((hostname, query_type, timeout_retries + 1))
+                    w.terminate()
+                i += 1
 
 #Extract relevant hosts
 #The dot at the end of a domain signifies the root,
@@ -562,7 +590,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             sys.stderr.write('Warning: Fewer than 16 resolvers per process, consider adding more nameservers to resolvers.txt.\n')
     else:
         #By default, use the authoritative nameservers for the target
-        resolve = Resolver()
+        resolve = resolver()
         resolve_list = resolve.get_authoritative(target)
         is_authoritative = True
         if not resolve_list:
@@ -571,7 +599,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
 
     #If we are resolving against the, check AXFR,  we might get lucky :)
     if is_authoritative:
-        ar = Resolver(resolve_list)
+        ar = resolver(resolve_list)
         #Check every authoritative NS for AXFR support
         #These are distinct servers, one could be misconfigured
         for i in range(len(resolve_list)):
@@ -629,9 +657,14 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
         if process_count <= 0:
             process_count = 1
         trace("Too few resolvers:", list_len, " process_count reduced to:", process_count)
+    worker_list = []
     for i in range(process_count):
         worker = lookup(in_q, in_q_priority, out_q, resolve_q, target)
         worker.start()
+        worker_list.append(worker)
+    #Keep track of lazy workers.
+    reep = reeper(worker_list)
+    reep.start()
     threads_remaining = process_count
     while True:
         try:
@@ -668,7 +701,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                                 if spider_lookup not in spider_blacklist:
                                     spider_blacklist[spider_lookup] = None
                                     #This will produce many NOERROR retries, reduce the retries.
-                                    in_q_priority.put((record_name, qt, 3))
+                                    in_q_priority.put((record_name, qt, 2))
                     #if this is an error response, check if we have already found data for this domain.
                     if not record_data:
                         if not record_name in found_domains:
