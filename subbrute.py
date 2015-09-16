@@ -23,6 +23,7 @@ import itertools
 import datetime
 import socket
 import struct
+import requests
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -530,8 +531,33 @@ def extract_directory(dir_name, hostname = ""):
                     ret.append(h)
     return ret
 
-def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False):
+def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False, dnsdumpster=False):
     json_struct = {}
+
+    if dnsdumpster:
+        s = requests.Session()
+        page_with_token = s.get("https://dnsdumpster.com/").text
+        csrf_token = re.findall("[a-zA-Z0-9]{32}", page_with_token)[0]
+        cookies = dict(csrftoken=csrf_token)
+        s.headers.update({
+            "referer": "https://dnsdumpster.com/",
+            "origin" : "https://dnsdumpster.com/"
+        })
+        payload = {
+            "csrfmiddlewaretoken" : csrf_token,
+            "targetip" : target
+        }
+        page_with_results = s.post("https://dnsdumpster.com/", data=payload, cookies=cookies).text
+        domain_regex = "([a-zA-Z0-9\-\.]+)\.{0}".format(target)
+        subdomains_dnsdump = re.findall(domain_regex, page_with_results)
+        for i in list(set(subdomains_dnsdump)):
+            subdomain_dnsdump = i + "." + target
+            print(subdomain_dnsdump)
+            sys.stdout.flush()
+            if output:
+                output.write(subdomain_dnsdump + "\n")
+                output.flush()
+
     if not print_data:
         dupe_filter = {}
     for result in run(target, query_type, subdomains, resolve_list, process_count):
@@ -820,6 +846,8 @@ if __name__ == "__main__":
               help = "(optional) Number of lookup theads to run. default = 16")
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
+    parser.add_option("--dnsdumpster", action="store_true", dest = "dnsdumpster", default = False,
+              help = "(optional) Print subdomains found by DNSDumpster.com at the beginning of output")
     (options, args) = parser.parse_args()
 
     verbose = options.verbose
@@ -846,6 +874,7 @@ if __name__ == "__main__":
         except:
             error("Failed writing to file:", options.json)
 
+
     #subbrute with find the best record to use if the type is None.
     record_type = "ANY"
     if options.type:
@@ -855,5 +884,5 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
-            trace(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
-            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
+            trace(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output, options.dnsdumpster)
+            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output, options.dnsdumpster)
