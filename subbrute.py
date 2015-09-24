@@ -23,6 +23,7 @@ import itertools
 import datetime
 import socket
 import struct
+import nmap
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -448,6 +449,48 @@ class lookup(multiprocessing.Process):
                             #This request is filled, send the results back
                             self.out_q.put(f)
 
+#Nmap class
+class nmap_scanner():
+    def __init__(self):
+        self.ip = ''
+        self.results = {}
+        self.nmap = nmap.PortScanner()
+        self.nmap_args = " --top-ports 420"
+        
+    def run(self):
+        if(self.ip in self.results):
+            return self.get_result()  
+
+        try:
+            self.nmap.scan(hosts=self.ip, arguments=self.nmap_args)
+        except Exception as e:
+            error(e)
+
+        self.results[self.ip] = self.nmap[self.ip]
+        return self.get_result()
+
+    def get_array_result(self):
+        return self.results[self.ip]
+
+    def get_result(self):
+        message = ''
+        ip = self.ip
+        message += ('----------------------------------------------------\n')
+        message += ('Host : %s\n' % (ip))
+        message += ('State : %s\n' % self.results[ip].state())
+
+        for proto in self.results[ip].all_protocols():
+            message += ('----------\n')
+            message += ('Protocol : %s\n' % proto)
+
+            lport = self.results[ip][proto].keys()
+            lport.sort()
+            for port in lport:
+                message += ('port : %s\tstate : %s\n' % (port, self.results[ip][proto][port]['state']))
+                
+        message += ('----------------------------------------------------')    
+        return message
+
 #The multiprocessing queue will fill up, so a new process is required.
 class loader(multiprocessing.Process):
     def __init__(self, in_q, subdomains, query_type, permute_len = 0):
@@ -530,8 +573,12 @@ def extract_directory(dir_name, hostname = ""):
                     ret.append(h)
     return ret
 
-def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False):
+def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False, nmap = False):
     json_struct = {}
+
+    if nmap:
+        nmap_key = "nmap"
+
     if not print_data:
         dupe_filter = {}
     for result in run(target, query_type, subdomains, resolve_list, process_count):
@@ -548,25 +595,51 @@ def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_l
                 record = ",".join(record)
             result = "%s,%s,%s" % (hostname, record_type, record)
         if result:
-            print(result)
+            if nmap:  
+                try:
+                    ip = socket.gethostbyname(hostname)
+                    print("\n" + result + " - " + ip)  
+
+                    nmap.ip = ip
+                    nmap_result = nmap.run()
+                    print nmap_result
+    
+                except IOError as e:
+                    print ("\n"+result + " - IP not found")   
+            else:
+                print result
             sys.stdout.flush()
             if hostname in json_struct:
                 if record_type in json_struct:
                     json_struct[hostname][record_type].append(record)
+
+                    if(nmap_options is not False):
+                        json_struct[hostname][nmap_key] = []
+                        json_struct[hostname][nmap_key].append(nmap.get_array_result())
                 else:
                     json_struct[hostname][record_type] = []
                     json_struct[hostname][record_type].append(record)
+
+                    if(nmap is not False):
+                        json_struct[hostname][nmap_key] = []   
+                        json_struct[hostname][nmap_key].append(nmap.get_array_result())
             else:
                 json_struct[hostname] = {}
                 json_struct[hostname][record_type] = []
                 json_struct[hostname][record_type].append(record)
+
+                if(nmap is not False):
+                    json_struct[hostname][nmap_key] = []  
+                    json_struct[hostname][nmap_key].append(nmap.get_array_result())
             if output:
                 output.write(result + "\n")
+                if(nmap_options is not False):
+                    output.write(nmap_result + "\n")
                 output.flush()
     #The below formats the JSON to be semantically correct, after the scan has been completed
     if json_output:
-        json_output = open(options.json, "w")
-        json_output.write(json.dumps(json_struct))
+        json_output = open(options.json, "a")
+        json_output.write(json.dumps(json_struct) + "\n")
 
 def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16):
     spider_blacklist = {}
@@ -820,6 +893,8 @@ if __name__ == "__main__":
               help = "(optional) Number of lookup theads to run. default = 16")
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
+    parser.add_option("--nmap", dest="nmap", action="store_true", default = False, help="(optional) Use nmap to scan domains")
+    parser.add_option("--nmap-args", dest="nmap_args", action="store", default=False, help="(optional) Set own nmap arguments. default='--top-ports 420'")
     (options, args) = parser.parse_args()
 
     verbose = options.verbose
@@ -846,7 +921,17 @@ if __name__ == "__main__":
         except:
             error("Failed writing to file:", options.json)
 
-    #subbrute with find the best record to use if the type is None.
+    nmap_worker = False
+    if options.nmap:
+        nmap_worker = nmap_scanner()
+
+    if options.nmap_args:
+        if options.nmap == False:
+            error("--nmap-args cannot be set without --nmap option enabled")
+        else:
+            nmap_worker.nmap_args = options.nmap_args   
+
+ #subbrute with find the best record to use if the type is None.
     record_type = "ANY"
     if options.type:
         record_type = str(options.type).upper()
@@ -856,4 +941,4 @@ if __name__ == "__main__":
         target = target.strip()
         if target:
             trace(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
-            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
+            print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output,nmap_worker)
