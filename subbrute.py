@@ -794,7 +794,8 @@ def signal_init():
         #Windows
         pass
 
-if __name__ == "__main__":
+
+def main():
     if getattr(sys, 'frozen', False):
         # cx_freeze windows:
         base_path = os.path.dirname(sys.executable)
@@ -857,3 +858,6 @@ if __name__ == "__main__":
         if target:
             trace(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
             print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
+
+if __name__ == "__main__":
+    main()
