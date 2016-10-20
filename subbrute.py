@@ -23,6 +23,7 @@ import itertools
 import datetime
 import socket
 import struct
+from tqdm import tqdm, tqdm_gui
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -293,9 +294,22 @@ class verify_nameservers(multiprocessing.Process):
         else:
             return False
 
+class Counter(object):
+    def __init__(self, initval=0):
+        self.val = multiprocessing.Value('i', initval)
+        self.lock = multiprocessing.Lock()
+
+    def increment(self):
+        with self.lock:
+            self.val.value += 1
+
+    def value(self):
+        with self.lock:
+            return self.val.value
+
 class lookup(multiprocessing.Process):
 
-    def __init__(self, in_q, in_q_priority, out_q, resolver_q, domain):
+    def __init__(self, in_q, in_q_priority, out_q, resolver_q, domain, prog_c, total_c):
         multiprocessing.Process.__init__(self, target = self.run)
         signal_init()
         self.required_nameservers = 16
@@ -308,6 +322,9 @@ class lookup(multiprocessing.Process):
         self.resolver = resolver([])
         self.start_time = 0
         self.current_work = None
+
+        self.prog_c = prog_c 
+        self.total_c = total_c
 
     def get_ns(self):
         ret = False
@@ -381,6 +398,7 @@ class lookup(multiprocessing.Process):
                 elif retries >= 3:
                     #This thread has tried and given    up
                     trace('Exception:', type(e), " - ", e)
+                    self.total_c.increment()
                     self.in_q_priority.put((host, record_type, total_rechecks + 1))
                     return False
                 else:
@@ -423,6 +441,9 @@ class lookup(multiprocessing.Process):
                 #keep track of how many times this lookup has timedout.
                 (hostname, query_type, timeout_retries) = work
                 response = self.check(hostname, query_type, timeout_retries)
+                #self.progress_c.increment()
+                #self.pbar.update(1)
+                self.prog_c.increment()
                 sys.stdout.flush()
                 #This variable doesn't need a muetex, because it has a queue. 
                 #A queue ensure nameserver cannot be used before it's wildcard entries are found.
@@ -443,6 +464,8 @@ class lookup(multiprocessing.Process):
                             break
                         else:
                             found.append(record)
+
+
                     if not reject:
                         for f in found:
                             #This request is filled, send the results back
@@ -450,10 +473,11 @@ class lookup(multiprocessing.Process):
 
 #The multiprocessing queue will fill up, so a new process is required.
 class loader(multiprocessing.Process):
-    def __init__(self, in_q, subdomains, query_type, permute_len = 0):
+    def __init__(self, in_q, total_c, subdomains, query_type, permute_len = 0):
         multiprocessing.Process.__init__(self, target = self.run)
         signal_init()
         self.in_q = in_q
+        self.total_c = total_c
         self.subdomains = subdomains
         self.query_type = query_type
         self.permute_len = permute_len
@@ -467,6 +491,7 @@ class loader(multiprocessing.Process):
             if not permute_filter.match(s):
                 #Domains cannot contain whitespace,  and are case-insensitive.
                 self.in_q.put((s, self.query_type, 0))
+                self.total_c.increment()
         #Terminate the queue
         self.in_q.put(False)
 
@@ -476,6 +501,7 @@ class loader(multiprocessing.Process):
             for i in itertools.permutations(full_range, l):
                 if i :
                     self.in_q.put((i, self.query_type, 0))
+                    self.total_c.increment()
 
 class reeper(multiprocessing.Process):
     def __init__(self, worker_list):
@@ -492,10 +518,11 @@ class reeper(multiprocessing.Process):
                 #Has this process been working for longer than 2 minutes?
                 if w.start_time and w.start_time < timeout:
                     trace("Killing off another lazy worker:", w.current_work)
-                    new_worker = lookup(w.in_q, w.in_q_priority, w.out_q, w.resolve_q, w.target)
+                    new_worker = lookup(w.in_q, w.in_q_priority, w.out_q, w.resolve_q, w.target, w.prog_c, w.total_c)
                     new_worker.start()
                     self.worker_list[i] = new_worker
                     (hostname, query_type, timeout_retries) = w.current_work
+                    w.total_c.increment()
                     w.in_q_priority.put((hostname, query_type, timeout_retries + 1))
                     w.terminate()
                 i += 1
@@ -530,11 +557,12 @@ def extract_directory(dir_name, hostname = ""):
                     ret.append(h)
     return ret
 
-def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False):
+def print_target(target, query_type = "ANY", subdomains = "names_small.txt", resolve_list = "resolvers.txt", process_count = 16, print_data = False, output = False, json_output = False):
+    pbar = tqdm(total=9999999999, unit="dns")
     json_struct = {}
     if not print_data:
         dupe_filter = {}
-    for result in run(target, query_type, subdomains, resolve_list, process_count):
+    for result in run(pbar, target, query_type, subdomains, resolve_list, process_count):
         (hostname, record_type, record) = result
         if not print_data:
             #We just care about new names, filter multiple records for the same name.
@@ -548,7 +576,7 @@ def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_l
                 record = ",".join(record)
             result = "%s,%s,%s" % (hostname, record_type, record)
         if result:
-            print(result)
+            pbar.write(result)#print(result)
             sys.stdout.flush()
             if hostname in json_struct:
                 if record_type in json_struct:
@@ -568,13 +596,15 @@ def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_l
         json_output = open(options.json, "w")
         json_output.write(json.dumps(json_struct))
 
-def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16):
+def run(pbar, target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16):
     spider_blacklist = {}
     result_blacklist = {}
     found_domains = {}
     in_q = multiprocessing.Queue()
     in_q_priority = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
+    total_c = Counter(0)
+    prog_c = Counter(0)
     #Have a buffer of at most two new nameservers that lookup processes can draw from.
     resolve_q = multiprocessing.Queue(maxsize = 2)
 
@@ -617,8 +647,11 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     #Make a source of fast nameservers available for other processes.
     verify_nameservers_proc = verify_nameservers(target, query_type, resolve_q, resolve_list, is_authoritative)
     verify_nameservers_proc.start()
+
     #test the empty string
+    total_c.increment()
     in_q.put((target, query_type, 0))
+
     spider_blacklist[target + query_type] = None
     clean_subs = []
     for s in subdomains:
@@ -645,8 +678,12 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     del subdomains
 
     #load in the subdomains, can be quite large
-    load = loader(in_q, clean_subs, query_type)
+    load = loader(in_q, total_c, clean_subs, query_type)
     load.start()
+
+    #ptotal = in_q.qsize()
+    pbar_last = 0
+    pbar.total = total_c.value()
 
     #We may not have the resolvers needed to backup our thread count.
     list_len = len(resolve_list)
@@ -659,17 +696,35 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
         trace("Too few resolvers:", list_len, " process_count reduced to:", process_count)
     worker_list = []
     for i in range(process_count):
-        worker = lookup(in_q, in_q_priority, out_q, resolve_q, target)
+        worker = lookup(in_q, in_q_priority, out_q, resolve_q, target, prog_c, total_c)
         worker.start()
         worker_list.append(worker)
     #Keep track of lazy workers.
     reep = reeper(worker_list)
     reep.start()
     threads_remaining = process_count
+    
+    prog_last = 0
+    pbar.total = total_c.value()
     while True:
         try:
             #The output is valid hostnames
-            result = out_q.get(True, 10)
+            
+            while True: 
+                try:
+                    result = out_q.get(True, 0.01)
+                    break
+                except Exception as e:
+                    if type(e) == Queue.Empty or str(type(e)) == "<class 'queue.Empty'>":
+                        x = prog_c.value()
+                        if x > 0 and (x - prog_last) > 0:
+                            pbar.total = total_c.value()
+                            pbar.update(x - prog_last)
+                            prog_last = x
+                        pass
+                    else:
+                        raise(e)
+
             #we will get an empty exception before this runs. 
             if not result:
                 threads_remaining -= 1
@@ -685,9 +740,11 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                         hosts = extract_hosts(str(record_data), target)
                         for h in hosts:
                             spider_lookup = h + query_type
+                            #pbar.write('found host: ' + spider_lookup)
                             if spider_lookup not in spider_blacklist:
                                 spider_blacklist[spider_lookup] = None
                                 #spider newly found hostname
+                                total_c.increment()
                                 in_q_priority.put((h, query_type, 0))
                     if type(record_name) is tuple:
                         pass
@@ -701,6 +758,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                                 if spider_lookup not in spider_blacklist:
                                     spider_blacklist[spider_lookup] = None
                                     #This will produce many NOERROR retries, reduce the retries.
+                                    total_c.increment()
                                     in_q_priority.put((record_name, qt, 2))
                     #if this is an error response, check if we have already found data for this domain.
                     if not record_data:
@@ -717,9 +775,20 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                 pass
             else:
                 raise(e)
+        
+        #update progress
+        pbar.total = total_c.value()
+        #pbar.refresh()
+        #pbar.write("current total: " + str(pbar.total))
+        #pcount = progress_c.value()
+        #pbar.update(pcount - pbar_last) 
+        #pbar_last = pcount
+
         #make sure everyone is complete
         if threads_remaining <= 0:
             break
+
+    pbar.close()
     trace("About to kill nameserver process...")
     #We no longer require name servers.
     try:
