@@ -31219,6 +31219,16 @@ ri
 canada
 winxp
 moscow
+directaccess
+lyncdiscover
+mailsync
+mdm-core
+mdm-entry
+mdm-sentry
+webcon
+webconf
+webex
+webext
 13
 12
 15
