@@ -724,12 +724,13 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     #We no longer require name servers.
     try:
         killproc(pid = verify_nameservers_proc.pid)
+        reep.terminate()
     except:
         #Windows threading.tread
         verify_nameservers_proc.end()
     trace("End")
 
-#exit handler for signals.  So ctrl+c will work. 
+#exit handler for signals.  So ctrl+c will work.
 #The 'multiprocessing' library each process is it's own process which side-steps the GIL
 #If the user wants to exit prematurely,  each process must be killed.
 def killproc(signum = 0, frame = 0, pid = False):
