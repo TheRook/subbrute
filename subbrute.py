@@ -52,7 +52,7 @@ class resolver:
     def __init__(self, nameservers = ['8.8.8.8','8.8.4.4']):
         self.nameservers = nameservers
 
-    def query(self, hostname, query_type = 'ANY', name_server = False, use_tcp = True):
+    def query(self, hostname, query_type = 'ANY', name_server = False, use_tcp = False):
         ret = []
         response = None
         if name_server == False:
@@ -125,7 +125,7 @@ class resolver:
         while not ret and hostname.count(".") >= 1:
             try:
                 trace("Looking for nameservers:", hostname)
-                nameservers = self.query(hostname, 'NS')
+                nameservers = self.query(hostname, 'NS', use_tcp=False)
             except IOError:#lookup failed.
                 nameservers = []
             for n in nameservers:
@@ -133,7 +133,7 @@ class resolver:
                 rhost, record_type, record = n
                 if record_type == "NS":
                     #Return all A records for this NS lookup.
-                    a_lookup = self.query(record.rstrip("."), 'A')
+                    a_lookup = self.query(record.rstrip("."), 'A', use_tcp=False)   
                     for a_host, a_type, a_record in a_lookup:
                         ret.append(a_record)
                 #If a nameserver wasn't found try the parent of this sub.
@@ -151,7 +151,7 @@ class verify_nameservers(multiprocessing.Process):
         signal_init()
         self.authoritative = authoritative
 
-        self.time_to_die = False
+        self.start_time = 0
         self.resolver_q = resolver_q
         self.query_type = query_type
         self.resolver_list = resolver_list
@@ -162,13 +162,10 @@ class verify_nameservers(multiprocessing.Process):
         self.backup_resolver = ['8.8.8.8', '8.8.4.4', '127.0.0.1']
         self.prev_wildcards = {}
 
-    def end(self):
-        self.time_to_die = True
-
     #This process cannot block forever,  it  needs to check if its time to die.
     def add_nameserver(self, nameserver):
         keep_trying = True
-        while not self.time_to_die and keep_trying:
+        while keep_trying:
             try:
                 self.resolver_q.put(nameserver, timeout = 1)
                 trace("Added nameserver:", nameserver)
@@ -180,9 +177,6 @@ class verify_nameservers(multiprocessing.Process):
     def verify(self, nameserver_list):
         added_resolver = False
         for server in nameserver_list:
-            if self.time_to_die:
-                #We are done here.
-                break
             server = server.strip()
             if server:
                 try:
@@ -224,6 +218,8 @@ class verify_nameservers(multiprocessing.Process):
         #2)The target maybe using geolocaiton-aware DNS.
         #I have seen a CloudFlare Enterprise customer with these two conditions.
         try:
+            #start_time means this thread isn't dead
+            self.start_time = datetime.datetime.now()
             blanktest = self.resolver.query(self.target, self.query_type)
             if self.query_type == "ANY":
                 #If the type was ANY we should have gotten some records
@@ -246,6 +242,7 @@ class verify_nameservers(multiprocessing.Process):
                 #Using a 32 char string every time may be too predictable.
                 x = uuid.uuid4().hex[0:random.randint(6, 32)]
                 testdomain = "%s.%s" % (x, host)
+                self.start_time = datetime.datetime.now() # I'm not dead yet!
                 wildtest = self.resolver.query(testdomain, self.query_type, server)
                 #This record may contain a list of wildcards.
                 if len(wildtest):
@@ -458,9 +455,10 @@ class loader(multiprocessing.Process):
         self.query_type = query_type
         self.permute_len = permute_len
 
-    #Python blocks on in_q for large datasets, even though the queue size is 'unlimited'
+    #Python blocks on in_q for large datasets, even though the queue size is 'unlimited' :(
     def run(self):
         self.permute()
+        #Remove items from the list that will be in the permutation set.
         permute_filter = re.compile("^[a-zA-Z0-9]{" + str(self.permute_len) + "}\.")
         #A list of subdomains is the input
         for s in self.subdomains:
@@ -470,6 +468,7 @@ class loader(multiprocessing.Process):
         #Terminate the queue
         self.in_q.put(False)
 
+    #bruteforce a range.
     def permute(self):
         full_range = string.ascii_lowercase + string.digits + "_-"
         for l in range(1, self.permute_len + 1):
@@ -477,19 +476,30 @@ class loader(multiprocessing.Process):
                 if i :
                     self.in_q.put((i, self.query_type, 0))
 
+#DNS resolution sockets will get stuck, and ignore their timeout settings.
+#This is a known issue in dnslib, and reeper() is the temporary solution.
 class reeper(multiprocessing.Process):
-    def __init__(self, worker_list):
+    def __init__(self, worker_list, verify_nameservers_proc):
         multiprocessing.Process.__init__(self, target = self.run)
         signal_init()
         self.worker_list = worker_list
+        self.v = verify_nameservers_proc
 
     def run(self):
         while True:
             time.sleep(60)
             timeout = datetime.datetime.now() - datetime.timedelta(minutes = 2)
+            trace("Reeper looking for someone to kill:", self.v.start_time)
             i = 0
+            if self.v.start_time and self.v.start_time < timeout:
+                trace("The verify nameserver process is stuck:", self.v)
+                verify_nameservers_proc = verify_nameservers(self.v.target, self.v.query_type, self.v.resolve_q, self.v.resolve_list, self.v.is_authoritative)
+                verify_nameservers_proc.start()
+                self.v = verify_nameservers_proc
+                self.v.terminate()
             for w in self.worker_list:
                 #Has this process been working for longer than 2 minutes?
+                trace("Checking worker:", w.start_time )
                 if w.start_time and w.start_time < timeout:
                     trace("Killing off another lazy worker:", w.current_work)
                     new_worker = lookup(w.in_q, w.in_q_priority, w.out_q, w.resolve_q, w.target)
@@ -572,7 +582,8 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
     spider_blacklist = {}
     result_blacklist = {}
     found_domains = {}
-    in_q = multiprocessing.Queue()
+    #A thread fills the in_q, reduce memory usage, wait until we have space
+    in_q = multiprocessing.Queue(maxsize = 128)
     in_q_priority = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
     #Have a buffer of at most two new nameservers that lookup processes can draw from.
@@ -597,7 +608,7 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
             sys.stderr.write("Unable to find authoritative resolvers for:" + target)
             return
 
-    #If we are resolving against the, check AXFR,  we might get lucky :)
+    #If we are resolving against the authoratative NS, check AXFR,  we might get lucky :)
     if is_authoritative:
         ar = resolver(resolve_list)
         #Check every authoritative NS for AXFR support
@@ -663,8 +674,8 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
         worker.start()
         worker_list.append(worker)
     #Keep track of lazy workers.
-    reep = reeper(worker_list)
-    reep.start()
+    #reep = reeper(worker_list, verify_nameservers_proc)
+    #reep.start()
     threads_remaining = process_count
     while True:
         try:
@@ -692,10 +703,10 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
                     if type(record_name) is tuple:
                         pass
                     #If we are using open resolvers we need to attempt every record type.
-                    if query_type == "ANY" and not is_authoritative and len(record_name) and record_name.endswith(target):
+                    if query_type == "ANY" and record_name.endswith(target):
                         #Simulate an ANY query by requesting ALL types
                         for qt in dnslib.QTYPE.reverse:
-                            #These query types are usually disabled and typically not enabled on a per-sub basis.
+                            #These query types are usually disabled and are not typically enabled on a per-sub basis.
                             if qt not in ["AXFR", "IXFR", "OPT", "TSIG", "TKEY"]:
                                 spider_lookup = record_name + qt
                                 if spider_lookup not in spider_blacklist:

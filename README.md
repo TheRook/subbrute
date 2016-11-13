@@ -3,9 +3,12 @@ subdomain-bruteforcer (SubBrute)
 =====================
 SubBrute is a community driven project with the goal of creating the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
-Whats new in v2.0?
+Whats new in v2.1?
 =====================
-A lot of exciting updates... except for the readme file,  which still needs to be updated.
+Better stablity. Better support for testing cloudflare domains.
+
+Thank you for the bug posts!
+
 
 Whats new in v1.2.1?
 =====================
@@ -58,11 +61,7 @@ New output:
 More Information
 =====================
 
-The 'names.txt' list  was created using some creative Google hacks with additions from the community.  SubBrute has a feature to build your own subdomain lists by matching sub-domains with regular expression and sorting by frequency of occurrence:
-
- - python subroute.py -f full.html > my_subs.txt
-
-names.txt contains 31298 subdomains.  subs_small.txt was stolen from fierce2 which contains 1896 subdomains.   If you find more subdomains to add,  open a bug report or pull request and I'll be happy to add them.
+names.txt contains 101,010 subdomains.  subs_small.txt was stolen from fierce2 which contains 1896 subdomains.   If you find more subdomains to add,  open a bug report or pull request and I'll be happy to add them.
 
 No install required for Windows,  just cd into the 'windows' folder:
 
