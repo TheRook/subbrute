@@ -3,6 +3,13 @@ subdomain-bruteforcer (SubBrute)
 =====================
 SubBrute is a community driven project with the goal of creating the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
+Installation
+============
+
+To install, just clone this repository with `git clone https://github.com/TheRook/subbrute.git` and then install with `cd subbrute && python setup.py install`.
+
+SubBrute can then be called with `subbrute` (or `subbrute.exe` under Windows. Note that under Windows, the python 'Scripts' folder must be in the PATH). SubBrute can also be called without installation by running `python subbrute.py` from the project folder. For details, see [More Information](https://github.com/TheRook/subbrute#more-information)
+
 Whats new in v2.0?
 =====================
 A lot of exciting updates... except for the readme file,  which still needs to be updated.
