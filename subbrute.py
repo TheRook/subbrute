@@ -24,6 +24,9 @@ import datetime
 import socket
 import struct
 
+# Maximum time to wait for a DNS query to complete
+QUERY_TIMEOUT = 4
+
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
 try:
@@ -63,7 +66,7 @@ class resolver:
         self.last_resolver = name_server
         query = dnslib.DNSRecord.question(hostname, query_type.upper().strip())
         try:
-            response_q = query.send(name_server, 53, use_tcp)
+            response_q = query.send(name_server, 53, use_tcp, QUERY_TIMEOUT)
             if response_q:
                 response = dnslib.DNSRecord.parse(response_q)
             else:
