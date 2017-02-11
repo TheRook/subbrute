@@ -155,7 +155,7 @@ class verify_nameservers(multiprocessing.Process):
         self.resolver_q = resolver_q
         self.query_type = query_type
         self.resolver_list = resolver_list
-        self.resolver = resolver()
+        self.resolver = resolver([])
         #The domain provided by the user.
         self.target = target
         #Resolvers that will work in a pinch:
@@ -224,7 +224,7 @@ class verify_nameservers(multiprocessing.Process):
         #2)The target maybe using geolocaiton-aware DNS.
         #I have seen a CloudFlare Enterprise customer with these two conditions.
         try:
-            blanktest = self.resolver.query(self.target, self.query_type)
+            blanktest = self.resolver.query(self.target, self.query_type, server)
             if self.query_type == "ANY":
                 #If the type was ANY we should have gotten some records
                 if not len(blanktest) and not self.authoritative:
