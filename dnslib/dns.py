@@ -38,7 +38,7 @@ QTYPE =  Bimap('QTYPE',
                  45:'IPSECKEY', 46:'RRSIG', 47:'NSEC', 48:'DNSKEY', 49:'DHCID',
                  50:'NSEC3', 51:'NSEC3PARAM', 52:'TLSA', 55:'HIP', 99:'SPF',
                  249:'TKEY', 250:'TSIG', 251:'IXFR', 252:'AXFR', 255:'ANY',
-                 257:'TYPE257', 32768:'TA', 32769:'DLV'},
+                 257:'CAA', 32768:'TA', 32769:'DLV'},
                 DNSError)
 CLASS =  Bimap('CLASS',
                 {1:'IN', 2:'CS', 3:'CH', 4:'Hesiod', 254:'None', 255:'*'},
@@ -1549,12 +1549,75 @@ class RRSIG(RD):
     attrs = ('covered','algorithm','labels','orig_ttl','sig_exp','sig_inc',
              'key_tag','name','sig')
 
+class CAA(RD):
+    """
+        CAA record.
+
+        >>> CAA(0, 'issue', 'letsencrypt.org')
+        0 issue \"letsencrypt.org\"
+        >>> a = DNSRecord()
+        >>> a.add_answer(*RR.fromZone('example.com 60 IN CAA 0 issue "letsencrypt.org"'))
+        >>> print(a)
+        ;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: ...
+        ;; flags: rd; QUERY: 0, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+        ;; ANSWER SECTION:
+        example.com.            60      IN      CAA     0 issue "letsencrypt.org"
+    """
+
+    @classmethod
+    def parse(cls,buffer,length):
+        try:
+            (flags, tag_length) = buffer.unpack("!BB")
+            tag = buffer.get(tag_length).decode()
+            value = buffer.get(length - tag_length - 2).decode() 
+            return cls(flags, tag, value)
+        except (BufferError,BimapError) as e:
+            raise DNSError("Error unpacking CAA [offset=%d]: %s" % 
+                               (buffer.offset,e))
+
+    @classmethod
+    def fromZone(cls,rd,origin=None):
+        if len(rd) == 1:
+            try:
+                hex_parsed = bytes.fromhex(rd[0])
+                flags = hex_parsed[0]
+                tag_length = hex_parsed[1]
+            except:
+                hex_parsed = rd[0].decode('hex').encode()
+                flags = ord(hex_parsed[0])
+                tag_length = ord(hex_parsed[1])
+            tag = hex_parsed[2:2+tag_length].decode()
+            value = hex_parsed[tag_length+2:].decode()
+        else:
+            (flags, tag, value) = rd
+        return cls(int(flags), tag, value.replace('"', ''))
+
+    def __init__(self, flags, tag, value):
+        self.flags = flags
+        self.tag = tag
+        self.value = value
+        self.data = None
+
+    def pack(self,buffer):
+        buffer.pack("!BB", self.flags, len(self.tag))
+        buffer.append(self.tag.encode())
+        buffer.append(self.value.encode())
+
+    def toZone(self):
+        return "%d %s \"%s\"" % (self.flags, self.tag, self.value)
+
+    def __repr__(self):
+        return "%d %s \"%s\"" % (self.flags, self.tag, self.value)
+
+
+
+
 # Map from RD type to class (used to pack/unpack records)
 # If you add a new RD class you must add to RDMAP
 
 RDMAP = { 'CNAME':CNAME, 'A':A, 'AAAA':AAAA, 'TXT':TXT, 'MX':MX, 
           'PTR':PTR, 'SOA':SOA, 'NS':NS, 'NAPTR': NAPTR, 'SRV':SRV,
-          'DNSKEY':DNSKEY, 'RRSIG':RRSIG, 
+          'DNSKEY':DNSKEY, 'RRSIG':RRSIG, 'CAA':CAA
         }
 
 ##

@@ -47,42 +47,25 @@
     ...         print('---')
     ...         print(repr(record))
     ---
-    <DNS Header: id=0xfc6b type=QUERY opcode=QUERY flags=RD rcode='NOERROR' q=1 a=0 ns=0 ar=0>
+    <DNS Header: id=0xb294 type=QUERY opcode=QUERY flags=RD rcode='NOERROR' q=1 a=0 ns=0 ar=0>
     <DNS Question: 'google.com.' qtype=ANY qclass=IN>
     ---
-    <DNS Header: id=0xa6fc type=QUERY opcode=QUERY flags=RD rcode='NOERROR' q=1 a=0 ns=0 ar=0>
+    <DNS Header: id=0xb294 type=RESPONSE opcode=QUERY flags=RD,RA rcode='NOERROR' q=1 a=14 ns=0 ar=0>
     <DNS Question: 'google.com.' qtype=ANY qclass=IN>
-    ---
-    <DNS Header: id=0xa6fc type=RESPONSE opcode=QUERY flags=RD,RA rcode='NOERROR' q=1 a=28 ns=0 ar=0>
-    <DNS Question: 'google.com.' qtype=ANY qclass=IN>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.183'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.152'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.172'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.177'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.157'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.153'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.182'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.168'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.178'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.162'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.187'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.167'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.148'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.173'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.158'>
-    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='62.252.169.163'>
-    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=21599 rdata='ns4.google.com.'>
-    <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='50 alt4.aspmx.l.google.com.'>
-    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=21599 rdata='ns2.google.com.'>
-    <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='10 aspmx.l.google.com.'>
-    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=21599 rdata='ns3.google.com.'>
-    <DNS RR: 'google.com.' rtype=SOA rclass=IN ttl=21599 rdata='ns1.google.com. dns-admin.google.com. 2014021800 7200 1800 1209600 300'>
+    <DNS RR: 'google.com.' rtype=A rclass=IN ttl=299 rdata='216.58.212.110'>
+    <DNS RR: 'google.com.' rtype=AAAA rclass=IN ttl=299 rdata='2a00:1450:4009:807::200e'>
+    <DNS RR: 'google.com.' rtype=CAA rclass=IN ttl=86399 rdata='0 issue "symantec.com"'>
     <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='40 alt3.aspmx.l.google.com.'>
+    <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='10 aspmx.l.google.com.'>
+    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=86399 rdata='ns2.google.com.'>
     <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='20 alt1.aspmx.l.google.com.'>
-    <DNS RR: 'google.com.' rtype=TYPE257 rclass=IN ttl=21599 rdata='0005697373756573796d616e7465632e636f6d'>
-    <DNS RR: 'google.com.' rtype=TXT rclass=IN ttl=3599 rdata='"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"'>
+    <DNS RR: 'google.com.' rtype=SOA rclass=IN ttl=59 rdata='ns2.google.com. dns-admin.google.com. 144578247 900 900 1800 60'>
+    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=86399 rdata='ns1.google.com.'>
+    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=86399 rdata='ns4.google.com.'>
+    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=86399 rdata='ns3.google.com.'>
+    <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='50 alt4.aspmx.l.google.com.'>
+    <DNS RR: 'google.com.' rtype=TXT rclass=IN ttl=3599 rdata='"v=spf1 include:_spf.google.com ~all"'>
     <DNS RR: 'google.com.' rtype=MX rclass=IN ttl=599 rdata='30 alt2.aspmx.l.google.com.'>
-    <DNS RR: 'google.com.' rtype=NS rclass=IN ttl=21599 rdata='ns1.google.com.'>
 
 """
 

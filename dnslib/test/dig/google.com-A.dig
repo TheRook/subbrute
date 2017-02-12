@@ -1,0 +1,40 @@
+
+; <<>> DiG 9.8.5-P1 <<>> +qr google.com
+;; global options: +cmd
+;; Sending:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 23706
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;google.com.			IN	A
+
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 23706
+;; flags: qr rd ra; QUERY: 1, ANSWER: 16, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;google.com.			IN	A
+
+;; ANSWER SECTION:
+google.com.		299	IN	A	62.252.169.183
+google.com.		299	IN	A	62.252.169.152
+google.com.		299	IN	A	62.252.169.172
+google.com.		299	IN	A	62.252.169.177
+google.com.		299	IN	A	62.252.169.157
+google.com.		299	IN	A	62.252.169.153
+google.com.		299	IN	A	62.252.169.182
+google.com.		299	IN	A	62.252.169.168
+google.com.		299	IN	A	62.252.169.178
+google.com.		299	IN	A	62.252.169.162
+google.com.		299	IN	A	62.252.169.187
+google.com.		299	IN	A	62.252.169.167
+google.com.		299	IN	A	62.252.169.148
+google.com.		299	IN	A	62.252.169.173
+google.com.		299	IN	A	62.252.169.158
+google.com.		299	IN	A	62.252.169.163
+
+;; Query time: 42 msec
+;; SERVER: 10.0.1.1#53(10.0.1.1)
+;; WHEN: Mon May 05 12:01:30 BST 2014
+;; MSG SIZE  rcvd: 284
+

@@ -1,0 +1,16 @@
+;; Sending:
+;; QUERY: 520a010000010000000000000866616365626f6f6b03636f6d00001c0001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 21002
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;facebook.com.                  IN      AAAA
+
+;; Got answer:
+;; RESPONSE: 520a818000010001000000000866616365626f6f6b03636f6d00001c0001c00c001c00010000022100102a0328802110df07faceb00c00000001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 21002
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;facebook.com.                  IN      AAAA
+;; ANSWER SECTION:
+facebook.com.           545     IN      AAAA    2a03:2880:2110:df07:face:b00c:0:1
+

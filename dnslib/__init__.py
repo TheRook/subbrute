@@ -316,6 +316,7 @@ Changelog:
  *   0.9.5   2015-10-27  Add threading & timeout handling to DNSServer
  *   0.9.6   2015-10-28  Replace strftime in RRSIG formatting to avoid possible locale issues
                          Identified by Bryan Everly - thanks
+ *   0.9.7   2017-01-15  Sort out CAA/TYPE257 DiG parsing mismatch 
 
 
 License:
@@ -333,11 +334,12 @@ Master Repository/Issues:
 
  *   https://bitbucket.org/paulc/dnslib
      (Cloned on GitHub: https://github.com/paulchakravarti/dnslib)
+
 """
 
 from dnslib.dns import *
 
-version = "0.9.6"
+version = "0.9.7"
 
 if __name__ == '__main__':
     import doctest,textwrap

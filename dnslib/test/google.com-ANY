@@ -1,0 +1,29 @@
+;; Sending:
+;; QUERY: 27e40100000100000000000006676f6f676c6503636f6d0000ff0001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 10212
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      ANY
+
+;; Got answer:
+;; RESPONSE: 27e481800001000e0000000006676f6f676c6503636f6d0000ff0001c00c000100010000012b0004d83ad54ec00c001c00010000012b00102a0014504009080e000000000000200ec00c000f0001000002570011001e04616c7432056173706d78016cc00cc00c000600010000003b0026036e7331c00c09646e732d61646d696ec00c089e16c70000038400000384000007080000003cc00c010100010001517f00130005697373756573796d616e7465632e636f6dc00c0010000100000e0f002423763d7370663120696e636c7564653a5f7370662e676f6f676c652e636f6d207e616c6cc00c000f0001000002570004000ac05bc00c000200010001517f0002c071c00c000200010001517f0006036e7332c00cc00c000f0001000002570009003204616c7434c05bc00c000200010001517f0006036e7333c00cc00c000f0001000002570009002804616c7433c05bc00c000f0001000002570009001404616c7431c05bc00c000200010001517f0006036e7334c00c
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 10212
+;; flags: qr rd ra; QUERY: 1, ANSWER: 14, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      ANY
+;; ANSWER SECTION:
+google.com.             299     IN      A       216.58.213.78
+google.com.             299     IN      AAAA    2a00:1450:4009:80e::200e
+google.com.             599     IN      MX      30 alt2.aspmx.l.google.com.
+google.com.             59      IN      SOA     ns1.google.com. dns-admin.google.com. 144578247 900 900 1800 60
+google.com.             86399   IN      CAA     0 issue "symantec.com"
+google.com.             3599    IN      TXT     "v=spf1 include:_spf.google.com ~all"
+google.com.             599     IN      MX      10 aspmx.l.google.com.
+google.com.             86399   IN      NS      ns1.google.com.
+google.com.             86399   IN      NS      ns2.google.com.
+google.com.             599     IN      MX      50 alt4.aspmx.l.google.com.
+google.com.             86399   IN      NS      ns3.google.com.
+google.com.             599     IN      MX      40 alt3.aspmx.l.google.com.
+google.com.             599     IN      MX      20 alt1.aspmx.l.google.com.
+google.com.             86399   IN      NS      ns4.google.com.
+

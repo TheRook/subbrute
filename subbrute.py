@@ -21,8 +21,6 @@ import json
 import string
 import itertools
 import datetime
-import socket
-import struct
 
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
@@ -63,7 +61,7 @@ class resolver:
         self.last_resolver = name_server
         query = dnslib.DNSRecord.question(hostname, query_type.upper().strip())
         try:
-            response_q = query.send(name_server, 53, use_tcp)
+            response_q = query.send(name_server, 53, use_tcp, timeout = 30)
             if response_q:
                 response = dnslib.DNSRecord.parse(response_q)
             else:
@@ -220,7 +218,8 @@ class verify_nameservers(multiprocessing.Process):
         try:
             #start_time means this thread isn't dead
             self.start_time = datetime.datetime.now()
-            blanktest = self.resolver.query(self.target, self.query_type)
+            #make sure we can query the host
+            blanktest = self.resolver.query(self.target, self.query_type, server)
             if self.query_type == "ANY":
                 #If the type was ANY we should have gotten some records
                 if not len(blanktest) and not self.authoritative:
@@ -230,6 +229,7 @@ class verify_nameservers(multiprocessing.Process):
                 return False
         except Exception as e:
             if not self.authoritative:
+                trace("Cannot perform ", self.query_type, " request:", host)
                 return False
         start_counter = 128
         test_counter = start_counter
@@ -259,8 +259,8 @@ class verify_nameservers(multiprocessing.Process):
                                     #specific to the NS server we are testing.
                                     wildcards.update(self.prev_wildcards)
                                     #Look for afew more wildcards, and then return.
-                                    if test_counter > 3:
-                                        test_counter = 3
+                                    if test_counter > 2:
+                                        test_counter = 2
                             if data not in wildcards:
                                 #wildcards were detected.
                                 wildcards[data] = None
@@ -370,12 +370,12 @@ class lookup(multiprocessing.Process):
                     #All other records:
                     return self.resolver.query(host, record_type)
             except (IOError, TypeError) as e:
-                if total_rechecks >= 3 or \
-                        (retries >= 2 and self.resolver.get_returncode() == "NOERROR"):
+                if total_rechecks >= 2 or \
+                        (retries >= 1 and self.resolver.get_returncode() == "NOERROR"):
                     #Multiple threads have tried and given up
                     trace('Giving up:', host, self.resolver.get_returncode())
                     return [(host, self.resolver.get_returncode(), "")]
-                elif retries >= 3:
+                elif retries >= 2:
                     #This thread has tried and given    up
                     trace('Exception:', type(e), " - ", e)
                     self.in_q_priority.put((host, record_type, total_rechecks + 1))
@@ -414,7 +414,7 @@ class lookup(multiprocessing.Process):
             work = self.get_work()
             #if the code above found work
             if work:
-                #Keep track of what we are working on, so the reeper can create a new worker.
+                #Keep track of what we are working on
                 self.current_work = work
                 self.start_time = datetime.datetime.now()
                 #keep track of how many times this lookup has timedout.
@@ -475,40 +475,6 @@ class loader(multiprocessing.Process):
             for i in itertools.permutations(full_range, l):
                 if i :
                     self.in_q.put((i, self.query_type, 0))
-
-#DNS resolution sockets will get stuck, and ignore their timeout settings.
-#This is a known issue in dnslib, and reeper() is the temporary solution.
-class reeper(multiprocessing.Process):
-    def __init__(self, worker_list, verify_nameservers_proc):
-        multiprocessing.Process.__init__(self, target = self.run)
-        signal_init()
-        self.worker_list = worker_list
-        self.v = verify_nameservers_proc
-
-    def run(self):
-        while True:
-            time.sleep(60)
-            timeout = datetime.datetime.now() - datetime.timedelta(minutes = 2)
-            trace("Reeper looking for someone to kill:", self.v.start_time)
-            i = 0
-            if self.v.start_time and self.v.start_time < timeout:
-                trace("The verify nameserver process is stuck:", self.v)
-                verify_nameservers_proc = verify_nameservers(self.v.target, self.v.query_type, self.v.resolve_q, self.v.resolve_list, self.v.is_authoritative)
-                verify_nameservers_proc.start()
-                self.v = verify_nameservers_proc
-                self.v.terminate()
-            for w in self.worker_list:
-                #Has this process been working for longer than 2 minutes?
-                trace("Checking worker:", w.start_time )
-                if w.start_time and w.start_time < timeout:
-                    trace("Killing off another lazy worker:", w.current_work)
-                    new_worker = lookup(w.in_q, w.in_q_priority, w.out_q, w.resolve_q, w.target)
-                    new_worker.start()
-                    self.worker_list[i] = new_worker
-                    (hostname, query_type, timeout_retries) = w.current_work
-                    w.in_q_priority.put((hostname, query_type, timeout_retries + 1))
-                    w.terminate()
-                i += 1
 
 #Extract relevant hosts
 #The dot at the end of a domain signifies the root,
@@ -578,12 +544,12 @@ def print_target(target, query_type = "ANY", subdomains = "names.txt", resolve_l
         json_output = open(options.json, "w")
         json_output.write(json.dumps(json_struct))
 
-def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 16):
+def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = False, process_count = 8):
     spider_blacklist = {}
     result_blacklist = {}
     found_domains = {}
     #A thread fills the in_q, reduce memory usage, wait until we have space
-    in_q = multiprocessing.Queue(maxsize = 128)
+    in_q = multiprocessing.Queue()
     in_q_priority = multiprocessing.Queue()
     out_q = multiprocessing.Queue()
     #Have a buffer of at most two new nameservers that lookup processes can draw from.
@@ -673,9 +639,6 @@ def run(target, query_type = "ANY", subdomains = "names.txt", resolve_list = Fal
         worker = lookup(in_q, in_q_priority, out_q, resolve_q, target)
         worker.start()
         worker_list.append(worker)
-    #Keep track of lazy workers.
-    #reep = reeper(worker_list, verify_nameservers_proc)
-    #reep.start()
     threads_remaining = process_count
     while True:
         try:
@@ -816,7 +779,7 @@ if __name__ == "__main__":
     parser = optparse.OptionParser("\n%prog [options] target_domain\n%prog -p target_domain")
     parser.add_option("-s", "--subs", dest = "subs", default = os.path.join(base_path, "names.txt"),
               type = "string", help = "(optional) A list of subdomains, accepts a single file, or a directory of files. default = 'names.txt'")
-    parser.add_option("-r", "--resolvers", dest = "resolvers", default = False,
+    parser.add_option("-r", "--resolvers", dest = "resolvers", default = "resolvers.txt",
               type = "string", help = "(optional) A list of DNS resolvers, if this list is empty it will OS's internal resolver default = 'resolvers.txt'")
     parser.add_option("-t", "--targets_file", dest = "targets", default = "",
               type = "string", help = "(optional) A file containing a newline delimited list of domains to brute force.")
@@ -827,8 +790,8 @@ if __name__ == "__main__":
     parser.add_option("--type", dest = "type", default = False,
               type = "string", help = "(optional) Print all reponses for an arbitrary DNS record type (CNAME, AAAA, TXT, SOA, MX...)")                  
     parser.add_option("-c", "--process_count", dest = "process_count",
-              default = 16, type = "int",
-              help = "(optional) Number of lookup theads to run. default = 16")
+              default = 8, type = "int",
+              help = "(optional) Number of lookup theads to run. default = 8")
     parser.add_option("-v", "--verbose", action = 'store_true', dest = "verbose", default = False,
               help = "(optional) Print debug information.")
     (options, args) = parser.parse_args()
@@ -866,5 +829,6 @@ if __name__ == "__main__":
     for target in targets:
         target = target.strip()
         if target:
+            trace("dnslib:",dnslib.version)
             trace(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)
             print_target(target, record_type, options.subs, options.resolvers, options.process_count, options.print_data, output, json_output)

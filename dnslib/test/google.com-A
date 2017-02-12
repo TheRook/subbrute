@@ -1,0 +1,31 @@
+;; Sending:
+;; QUERY: e21b0100000100000000000006676f6f676c6503636f6d0000010001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 57883
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      A
+
+;; Got answer:
+;; RESPONSE: e21b8180000100100000000006676f6f676c6503636f6d0000010001c00c000100010000004e00043efca9b7c00c000100010000004e00043efca9a7c00c000100010000004e00043efca9b1c00c000100010000004e00043efca9b6c00c000100010000004e00043efca99dc00c000100010000004e00043efca9a2c00c000100010000004e00043efca9a8c00c000100010000004e00043efca9acc00c000100010000004e00043efca9adc00c000100010000004e00043efca999c00c000100010000004e00043efca99ec00c000100010000004e00043efca998c00c000100010000004e00043efca994c00c000100010000004e00043efca9bbc00c000100010000004e00043efca9a3c00c000100010000004e00043efca9b2
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 57883
+;; flags: qr rd ra; QUERY: 1, ANSWER: 16, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      A
+;; ANSWER SECTION:
+google.com.             78      IN      A       62.252.169.183
+google.com.             78      IN      A       62.252.169.167
+google.com.             78      IN      A       62.252.169.177
+google.com.             78      IN      A       62.252.169.182
+google.com.             78      IN      A       62.252.169.157
+google.com.             78      IN      A       62.252.169.162
+google.com.             78      IN      A       62.252.169.168
+google.com.             78      IN      A       62.252.169.172
+google.com.             78      IN      A       62.252.169.173
+google.com.             78      IN      A       62.252.169.153
+google.com.             78      IN      A       62.252.169.158
+google.com.             78      IN      A       62.252.169.152
+google.com.             78      IN      A       62.252.169.148
+google.com.             78      IN      A       62.252.169.187
+google.com.             78      IN      A       62.252.169.163
+google.com.             78      IN      A       62.252.169.178
+

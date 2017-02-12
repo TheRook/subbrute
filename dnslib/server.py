@@ -129,7 +129,10 @@ class DNSHandler(socketserver.BaseRequestHandler):
             data = self.request.recv(8192)
             length = struct.unpack("!H",bytes(data[:2]))[0]
             while len(data) - 2 < length:
-                data += self.request.recv(8192)
+                new_data = self.request.recv(8192)
+                if not new_data:
+                    break
+                data += new_data
             data = data[2:]
         else:
             self.protocol = 'udp'

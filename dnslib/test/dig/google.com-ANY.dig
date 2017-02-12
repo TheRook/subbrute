@@ -1,0 +1,27 @@
+;; Sending:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 45716
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      ANY
+
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 45716
+;; flags: qr rd ra; QUERY: 1, ANSWER: 14, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      ANY
+;; ANSWER SECTION:
+google.com.             299     IN      A       216.58.212.110
+google.com.             299     IN      AAAA    2a00:1450:4009:807::200e
+google.com.             86399   IN      CAA     0 issue "symantec.com"
+google.com.             599     IN      MX      40 alt3.aspmx.l.google.com.
+google.com.             599     IN      MX      10 aspmx.l.google.com.
+google.com.             86399   IN      NS      ns2.google.com.
+google.com.             599     IN      MX      20 alt1.aspmx.l.google.com.
+google.com.             59      IN      SOA     ns2.google.com. dns-admin.google.com. 144578247 900 900 1800 60
+google.com.             86399   IN      NS      ns1.google.com.
+google.com.             86399   IN      NS      ns4.google.com.
+google.com.             86399   IN      NS      ns3.google.com.
+google.com.             599     IN      MX      50 alt4.aspmx.l.google.com.
+google.com.             3599    IN      TXT     "v=spf1 include:_spf.google.com ~all"
+google.com.             599     IN      MX      30 alt2.aspmx.l.google.com.
+

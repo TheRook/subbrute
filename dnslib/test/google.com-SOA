@@ -1,0 +1,16 @@
+;; Sending:
+;; QUERY: 4cce0100000100000000000006676f6f676c6503636f6d0000060001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 19662
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      SOA
+
+;; Got answer:
+;; RESPONSE: 4cce8180000100010000000006676f6f676c6503636f6d0000060001c00c000600010000545f0026036e7331c00c09646e732d61646d696ec00c780b88a800001c2000000708001275000000012c
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 19662
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      SOA
+;; ANSWER SECTION:
+google.com.             21599   IN      SOA     ns1.google.com. dns-admin.google.com. 2014021800 7200 1800 1209600 300
+

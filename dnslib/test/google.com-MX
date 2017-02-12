@@ -1,0 +1,20 @@
+;; Sending:
+;; QUERY: c1e20100000100000000000006676f6f676c6503636f6d00000f0001
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 49634
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      MX
+
+;; Got answer:
+;; RESPONSE: c1e28180000100050000000006676f6f676c6503636f6d00000f0001c00c000f0001000001fa0011001404616c7431056173706d78016cc00cc00c000f0001000001fa0009002804616c7433c02fc00c000f0001000001fa0009003204616c7434c02fc00c000f0001000001fa0009001e04616c7432c02fc00c000f0001000001fa0004000ac02f
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 49634
+;; flags: qr rd ra; QUERY: 1, ANSWER: 5, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION:
+;google.com.                    IN      MX
+;; ANSWER SECTION:
+google.com.             506     IN      MX      20 alt1.aspmx.l.google.com.
+google.com.             506     IN      MX      40 alt3.aspmx.l.google.com.
+google.com.             506     IN      MX      50 alt4.aspmx.l.google.com.
+google.com.             506     IN      MX      30 alt2.aspmx.l.google.com.
+google.com.             506     IN      MX      10 aspmx.l.google.com.
+
