@@ -348,11 +348,11 @@ class lookup(multiprocessing.Process):
                     added_cname = False
                     #A max 20 lookups
                     cname_host = host
-                    resp = self.resolver.query(cname_host, "A", total_rechecks)
+                    resp = self.check(cname_host, "A", total_rechecks)
                     if not resp:
-                        resp = self.resolver.query(cname_host, "AAAA", total_rechecks)
+                        resp = self.check(cname_host, "AAAA", total_rechecks)
                     if not resp:
-                        resp = self.resolver.query(cname_host, "CNAME", total_rechecks)
+                        resp = self.check(cname_host, "CNAME", total_rechecks)
                     for r in resp:
                         return_name, record_type, record_data = r
                         #if record_type in ["CNAME", "A", "AAAA"]:
