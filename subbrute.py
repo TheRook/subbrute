@@ -22,6 +22,9 @@ import string
 import itertools
 import datetime
 
+# Minimum number of seconds to wait before querying the same nameserver again
+REPEAT_TIMEOUT = 5
+
 #Python 2.x and 3.x compatiablity
 #We need the Queue library for exception handling
 try:
@@ -55,6 +58,9 @@ class resolver:
         response = None
         if name_server == False:
             name_server = self.get_ns()
+            # If we just picked the same one again, give it a break
+            if self.last_resolver == name_server:
+                time.sleep(REPEAT_TIMEOUT)
         else:
             self.wildcards = {}
             self.failed_code = None
