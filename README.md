@@ -16,7 +16,7 @@ The big news in this version is that SubBrute is now a recursive DNS-spider, and
 - SubBrute is now a DNS spider that recursively crawls enumerated DNS records. This feature boosted *.google.com from 123 to 162 subdomains. (Always enabled)
 - --type enumerate an arbitrary record type (AAAA, CNAME, SOA, TXT, MX...)
 - -s can now read subdomains from result files.
-- New useage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands demonstrate this new functionality:
+- New usage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands demonstrate this new functionality:
 ```
 	./subbrute.py google.com -o google.names
 		...162 subdomains found...
