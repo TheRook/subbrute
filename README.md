@@ -5,7 +5,7 @@ SubBrute is a community driven project with the goal of creating the fastest, an
 
 Whats new in v2.1?
 =====================
-Better stablity. Better support for testing cloudflare domains.
+Better stability. Better support for testing cloudflare domains.
 
 Thank you for the bug posts!
 
