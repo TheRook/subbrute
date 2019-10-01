@@ -1,7 +1,7 @@
 
 subdomain-bruteforcer (SubBrute)
 =====================
-SubBrute is a community driven project with the goal of creating the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
+SubBrute is a community-driven project to create the fastest, and most accurate subdomain enumeration tool.  Some of the magic behind SubBrute is that it uses open resolvers as a kind of proxy to circumvent DNS rate-limiting (https://www.us-cert.gov/ncas/alerts/TA13-088A).  This design also provides a layer of anonymity, as SubBrute does not send traffic directly to the target's name servers.
 
 Whats new in v2.1?
 =====================
@@ -10,34 +10,34 @@ Better stablity. Better support for testing cloudflare domains.
 Thank you for the bug posts!
 
 
-Whats new in v1.2.1?
+What's new in v1.2.1?
 =====================
-The big news in this version is that SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like nmap!), if you would like the interface to change,  let us know.  In this version we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when a subdomain is intended for for use on an internal network.
+The big news in this version is that SubBrute is now a recursive DNS-spider, and also a library,  more on this later. SubBrute should be easy to use, so the interface should be intuitive (like Nmap!) if you would like the interface to change,  let us know.  In this version, we are opening up SubBrute's fast DNS resolution pipeline for any DNS record type. Additionally, SubBrute now has a feature to detect subdomains were their resolution is intentionally blocked, which sometimes happens when a subdomain is intended for use on an internal network.
 - SubBrute is now a DNS spider that recursively crawls enumerated DNS records. This feature boosted *.google.com from 123 to 162 subdomains. (Always enabled)
 - --type enumerate an arbitrary record type (AAAA, CNAME, SOA, TXT, MX...)
 - -s can now read subdomains from result files.
-- New useage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands demonstrate this new functionality:
+- New usage -  The subdomains enumerated from previous scans can now be used as input to enumerate other DNS records.  The following commands demonstrate this new functionality:
 ```
-	./subbrute.py google.com -o google.names
-		...162 subdomains found...
+    ./subbrute.py google.com -o google.names
+        ...162 subdomains found...
 
-	./subbrute.py -s google.names google.com --type TXT
-		google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
-		adwords.google.com,"v=spf1 redirect=google.com"
-		...
+    ./subbrute.py -s google.names google.com --type TXT
+        google.com,"v=spf1 include:_spf.google.com ip4:216.73.93.70/31 ip4:216.73.93.72/31 ~all"
+        adwords.google.com,"v=spf1 redirect=google.com"
+        ...
 
-	./subbrute.py -s google.names google.com --type CNAME
-		blog.google.com,www.blogger.com,blogger.l.google.com
-		groups.google.com,groups.l.google.com
-		...
+    ./subbrute.py -s google.names google.com --type CNAME
+        blog.google.com,www.blogger.com,blogger.l.google.com
+        groups.google.com,groups.l.google.com
+        ...
 ```
 - SubBrute is now a subdomain enumeration library with a python interface: subbrute.run()
 Do you want to use SubBrute in your python projects? Consider the following:
 ```
-	import subbrute
+    import subbrute
 
-	for d in subbrute.run("google.com"):
-		print d 
+    for d in subbrute.run("google.com"):
+        print d 
 ```
 Feedback welcome.
 
@@ -50,8 +50,8 @@ Accuracy and better wildcard detection:
  - Filter misbehaving nameservers
 
 Faster:
- - More than 2,000 high quality nameservers were added to resolvers.txt,  these servers will resolve multiple queries in under 1 sec.
- - Nameservers are verified when they are needed.  A seperate thread is responsible creating a feed of nameservers, and corresponding wildcard blacklist.
+ - More than 2,000 high-quality nameservers were added to resolvers.txt,  these servers will resolve multiple queries in under 1 sec.
+ - Nameservers are verified when they are needed.  A separate thread is responsible for creating a feed of nameservers, and corresponding wildcard blacklist.
 
 New output:
 - -a will list all addresses associated with a subdomain.
@@ -68,7 +68,7 @@ No install required for Windows,  just cd into the 'windows' folder:
  - subbrute.exe google.com
 
 Easy to install:
-You just need http://www.dnspython.org/ and python2.7 or python3.  This tool should work under any operating system:  bsd, osx, windows, linux...
+You just need http://www.dnspython.org/ and python2.7 or python3.  This tool should work under any operating system:  bsd, osx, windows, Linux...
 
 (On a side note giving a makefile root always bothers me,  it would be a great way to install a backdoor...)
 
