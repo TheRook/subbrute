@@ -33,12 +33,15 @@ The big news in this version is that SubBrute is now a recursive DNS-spider, and
 ```
 - SubBrute is now a subdomain enumeration library with a python interface: subbrute.run()
 Do you want to use SubBrute in your python projects? Consider the following:
+
 ```
 	import subbrute
 
 	for d in subbrute.run("google.com"):
-		print d 
+		print (d) 
 ```
+*Please note that your python file must be placed inside the subbrute directory if you wish to make use of subbrute.run() as shown above.
+
 Feedback welcome.
 
 Whats new in v1.1?
